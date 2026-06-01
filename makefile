@@ -16,7 +16,7 @@ clean-whisper.cpp:
 
 # make download-whisper.cpp VERSION=v1.8.5 to download a specific version.
 download-whisper.cpp:
-	./bucky install -lib $(BUCKY_LIB) $(if $(VERSION),-v $(VERSION))
+	go run . install -lib $(BUCKY_LIB) $(if $(VERSION),-v $(VERSION))
 
 build:
 	BUCKY_LIB=$(BUCKY_LIB) go build -o bucky .

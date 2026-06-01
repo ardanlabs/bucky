@@ -27,9 +27,12 @@ var (
 	ErrUnsupportedPlatform = errors.New("no prebuilt whisper.cpp asset for this platform")
 )
 
-// BuckyBuilderRepo is the GitHub repo serving prebuilt Linux whisper.cpp
-// libraries. whisper.cpp upstream publishes no Linux release artifacts at
-// all, so bucky-builder fills the gap. See
+// BuckyBuilderRepo is the GitHub repo serving prebuilt whisper.cpp
+// libraries for Linux, macOS, and Windows CPU. whisper.cpp upstream
+// publishes no Linux release artifacts at all, and we mirror their
+// macOS xcframework + Windows CPU x64 zip there too so every bucky
+// download lines up against the same tag with the same build provenance.
+// Only Windows CUDA still comes straight from upstream. See
 // https://github.com/ardanlabs/bucky-builder for the build matrix.
 const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 
@@ -58,9 +61,7 @@ var (
 // WhisperLatestVersion fetches the latest whisper.cpp release tag bucky knows
 // about. This is sourced from bucky-builder's GitHub Pages, NOT from
 // whisper.cpp upstream directly, so the value reflects what bucky-builder
-// has built + tested. macOS / Windows still pull their assets from
-// upstream, but the version string lines up either way (bucky-builder
-// rebuilds within an hour of a new whisper.cpp tag).
+// has built + tested across Linux, macOS, and Windows CPU.
 func WhisperLatestVersion() (string, error) {
 	var version string
 	var err error
@@ -110,14 +111,19 @@ func getLatestVersion() (string, error) {
 // getDownloadLocationAndFilename returns the download URL location and the
 // asset filename for the given parameters.
 func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version string) (location, filename string, err error) {
-	location = fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
+	buckyBuilder := fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
+	upstream := fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
 
 	switch os {
 	case Darwin:
-		// The xcframework is universal (arm64 + x86_64) and includes Metal.
+		// bucky-builder packages the macOS slice of whisper.cpp's
+		// xcframework (universal arm64+x86_64, Metal + CoreML) so the
+		// download is small. extractDarwinXCFramework still expects the
+		// build-apple/whisper.xcframework/macos-arm64_x86_64/... layout.
 		switch prcssr {
 		case CPU, Metal:
-			filename = fmt.Sprintf("whisper-%s-xcframework.zip", version)
+			location = buckyBuilder
+			filename = fmt.Sprintf("whisper-%s-bin-darwin-metal-universal.zip", version)
 		default:
 			return "", "", fmt.Errorf("%w: darwin only supports cpu/metal", ErrUnknownProcessor)
 		}
@@ -128,19 +134,24 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 		}
 		switch prcssr {
 		case CPU:
-			filename = "whisper-bin-x64.zip"
+			// CPU x64 is built by bucky-builder with the same flag set
+			// as Linux (GGML_CPU_ALL_VARIANTS=ON, GGML_BACKEND_DL=ON).
+			location = buckyBuilder
+			filename = fmt.Sprintf("whisper-%s-bin-windows-cpu-x64.zip", version)
 		case CUDA:
+			// CUDA is still pulled straight from whisper.cpp upstream;
+			// bucky-builder does not build Windows CUDA yet.
+			location = upstream
 			filename = "whisper-cublas-12.4.0-bin-x64.zip"
 		default:
 			return "", "", fmt.Errorf("%w: windows supports cpu/cuda", ErrUnknownProcessor)
 		}
 
 	case Linux:
-		// Linux assets are produced by ardanlabs/bucky-builder (whisper.cpp
-		// upstream publishes none). Filename pattern is
-		// whisper-<TAG>-bin-ubuntu-<backend>-<arch>.tar.gz; both AMD64 and
-		// ARM64 are supported across cpu/cuda/vulkan.
-		location = fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
+		// Filename pattern is whisper-<TAG>-bin-ubuntu-<backend>-<arch>
+		// .tar.gz; both AMD64 and ARM64 are supported across cpu/cuda
+		// /vulkan.
+		location = buckyBuilder
 
 		var archStr string
 		switch arch {
