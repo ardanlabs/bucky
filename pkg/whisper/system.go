@@ -3,6 +3,7 @@ package whisper
 import (
 	"unsafe"
 
+	"github.com/ardanlabs/bucky/pkg/loader"
 	"github.com/ardanlabs/bucky/pkg/utils"
 	"github.com/jupiterrider/ffi"
 )
@@ -16,14 +17,22 @@ var (
 
 	// GGML_API void ggml_backend_load_all_from_path(const char * dir_path);
 	//
-	// Re-exported transitively via libwhisper.so → libggml-base.so on
-	// Linux. May be missing on macOS xcframework builds (where backends
-	// are statically linked); the loader treats a missing symbol as a
-	// soft no-op.
+	// Resolution differs per platform:
+	//   - Linux: libwhisper.so re-exports symbols from libggml-base.so via
+	//     the global dynamic symbol namespace, so dlsym on libwhisper
+	//     finds it.
+	//   - Windows: GetProcAddress is strict per-DLL. whisper.dll exports
+	//     the ggml_* symbols it uses internally but NOT this one (apps
+	//     are expected to call it), so we look it up in ggml.dll as a
+	//     fallback. Without this fallback Init() silently no-ops and
+	//     ggml ends up with zero registered backends.
+	//   - Darwin xcframework: backends are statically linked into the
+	//     framework binary and the symbol is not exported at all; the
+	//     loader treats a missing symbol as a soft no-op.
 	ggmlBackendLoadAllFromPathFunc ffi.Fun
 )
 
-func loadSystemFuncs(lib ffi.Lib) error {
+func loadSystemFuncs(lib ffi.Lib, path string) error {
 	var err error
 
 	if versionFunc, err = lib.Prep("whisper_version", &ffi.TypePointer); err != nil {
@@ -34,11 +43,24 @@ func loadSystemFuncs(lib ffi.Lib) error {
 		return loadError("whisper_print_system_info", err)
 	}
 
-	// Optional: only present when libwhisper was built with
-	// -DGGML_BACKEND_DL=ON (bucky-builder's Linux artifacts). Best-effort
-	// — a Prep failure here just means the symbol isn't exported, which
-	// is fine for static builds.
+	// Try whisper first. On Linux this works because libwhisper.so
+	// re-exports libggml-base.so's symbols. On the upstream darwin
+	// xcframework and on builds without GGML_BACKEND_DL=ON, the symbol
+	// is absent entirely and this fails benignly.
 	if fn, perr := lib.Prep("ggml_backend_load_all_from_path", &ffi.TypeVoid, &ffi.TypePointer); perr == nil {
+		ggmlBackendLoadAllFromPathFunc = fn
+		return nil
+	}
+
+	// Fallback: on Windows the symbol lives in ggml.dll, not whisper
+	// .dll. Open ggml.dll separately and look it up there. A failure
+	// here is non-fatal — it just means we'll skip ggml_backend_load
+	// _all_from_path in Init().
+	ggmlLib, perr := loader.LoadLibrary(path, "ggml")
+	if perr != nil {
+		return nil
+	}
+	if fn, perr := ggmlLib.Prep("ggml_backend_load_all_from_path", &ffi.TypeVoid, &ffi.TypePointer); perr == nil {
 		ggmlBackendLoadAllFromPathFunc = fn
 	}
 

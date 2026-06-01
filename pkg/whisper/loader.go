@@ -32,7 +32,7 @@ func Load(path string) error {
 		return err
 	}
 
-	if err := loadSystemFuncs(lib); err != nil {
+	if err := loadSystemFuncs(lib, path); err != nil {
 		return err
 	}
 
