@@ -20,7 +20,7 @@ var InstallCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "version",
 			Aliases: []string{"v"},
-			Usage:   "version of whisper.cpp to install (e.g. v1.8.5; default is the bucky-pinned version, pass \"latest\" to query the GitHub releases API)",
+			Usage:   "version of whisper.cpp to install (e.g. v1.8.6; default is the bucky-pinned version, pass \"latest\" to query the GitHub releases API)",
 			Value:   "",
 		},
 		&cli.StringFlag{

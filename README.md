@@ -40,7 +40,7 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 
 | whisper.cpp | bucky |
 | ----------- | ----- |
-| v1.8.5      | 0.1.x |
+| v1.8.6      | 0.1.x |
 
 The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
@@ -108,7 +108,7 @@ The architecture of bucky mirrors yzma file-for-file so anyone who knows yzma ca
                           │
                           ▼
               libwhisper.{dylib|so|dll}
-                  (whisper.cpp v1.8.5)
+                  (whisper.cpp v1.8.6)
 ```
 
 ## Models
