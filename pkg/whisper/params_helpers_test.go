@@ -1,6 +1,9 @@
 package whisper
 
-import "testing"
+import (
+	"testing"
+	"unsafe"
+)
 
 // TestStringRefs_SettersPopulateSlot verifies each setter on StringRefs
 // writes a non-zero pointer into the expected WhisperFullParams slot when
@@ -111,6 +114,60 @@ func TestStringRefs_EmptyClearsSlot(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStringRefs_SetPromptTokens verifies SetPromptTokens populates both
+// the pointer and count slots from a non-empty token slice, copies the
+// caller's data (so later mutation of the source does not corrupt the FFI
+// buffer), and clears both slots for an empty slice. The helper is pure Go,
+// so this test runs without the whisper library loaded.
+func TestStringRefs_SetPromptTokens(t *testing.T) {
+	t.Run("populates", func(t *testing.T) {
+		var p WhisperFullParams
+		var refs StringRefs
+
+		src := []Token{10, 20, 30}
+		refs.SetPromptTokens(&p, src)
+		defer refs.KeepAlive()
+
+		if p.PromptTokens == 0 {
+			t.Error("PromptTokens slot is zero after assign, want non-zero")
+		}
+		if p.PromptNTokens != int32(len(src)) {
+			t.Errorf("PromptNTokens: got %d, want %d", p.PromptNTokens, len(src))
+		}
+
+		// The retained buffer must point at the same memory the params
+		// slot does, so whisper.cpp reads exactly what we kept alive.
+		buf := refs.keepTokens[0]
+		if p.PromptTokens != uintptr(unsafe.Pointer(&buf[0])) {
+			t.Error("PromptTokens slot does not point at the retained buffer")
+		}
+
+		// Mutating the source must not change the retained buffer,
+		// proving SetPromptTokens copied the data.
+		src[0] = 999
+		if buf[0] != 10 {
+			t.Errorf("buffer aliased source: got %d after mutation, want 10", buf[0])
+		}
+	})
+
+	t.Run("empty clears", func(t *testing.T) {
+		var p WhisperFullParams
+		var refs StringRefs
+
+		// Seed with real tokens, then clear with an empty slice.
+		refs.SetPromptTokens(&p, []Token{1, 2})
+		refs.SetPromptTokens(&p, nil)
+		defer refs.KeepAlive()
+
+		if p.PromptTokens != 0 {
+			t.Errorf("PromptTokens slot = %#x after empty assign, want 0", p.PromptTokens)
+		}
+		if p.PromptNTokens != 0 {
+			t.Errorf("PromptNTokens: got %d after empty assign, want 0", p.PromptNTokens)
+		}
+	})
 }
 
 // TestStringRefs_EmbeddedNul verifies the setters surface the underlying

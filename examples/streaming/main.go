@@ -4,9 +4,10 @@
 // PromptTokens so the next window has linguistic context.
 //
 // Real real-time streaming is application-specific (microphone capture, VAD
-// gating, push notifications); this example focuses on the FFI boundary —
-// how to safely hand a Go []int32 to whisper.cpp via PromptTokens without
-// the GC pulling the rug out from under it.
+// gating, push notifications); this example focuses on carrying decoder
+// context across windows using whisper.StringRefs.SetPromptTokens, which
+// copies the tail tokens into a GC-safe buffer and keeps them alive for the
+// duration of the Full call.
 //
 // Usage:
 //
@@ -19,9 +20,7 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"runtime"
 	"strings"
-	"unsafe"
 
 	"github.com/ardanlabs/bucky/pkg/audio"
 	"github.com/ardanlabs/bucky/pkg/whisper"
@@ -99,7 +98,7 @@ func streamDecode(ctx whisper.Context, samples []float32, windowSec, overlapSec 
 
 	var (
 		out         strings.Builder
-		promptToks  []int32 // tail tokens from the previous window
+		promptToks  []whisper.Token // tail tokens from the previous window
 		windowIndex int
 	)
 
@@ -114,9 +113,6 @@ func streamDecode(ctx whisper.Context, samples []float32, windowSec, overlapSec 
 			nextPrompt = nextPrompt[len(nextPrompt)-nPromptTok:]
 		}
 
-		// Keep promptToks (used by *this* iteration's Full call) alive
-		// until after Full returns, then rotate.
-		runtime.KeepAlive(promptToks)
 		promptToks = nextPrompt
 		windowIndex++
 
@@ -131,12 +127,12 @@ func streamDecode(ctx whisper.Context, samples []float32, windowSec, overlapSec 
 // decodeWindow runs whisper.Full on a single window, appends its text to out,
 // and returns the window's tokens for use as the next window's PromptTokens.
 //
-// Hand the previous window's tail tokens to whisper.cpp as a
-// const whisper_token *. The slice's backing array must remain reachable for
-// the duration of the Full call, which is guaranteed by the runtime.KeepAlive
-// in the caller. NoContext=1 ensures whisper does not also prepend its own
+// SetPromptTokens copies the previous window's tail tokens into a buffer
+// owned by refs and hands whisper.cpp a const whisper_token * into it; the
+// deferred refs.KeepAlive keeps that buffer reachable for the duration of
+// the Full call. NoContext=1 ensures whisper does not also prepend its own
 // previous-segment context.
-func decodeWindow(ctx whisper.Context, chunk []float32, promptToks []int32, threads int, out *strings.Builder) ([]int32, error) {
+func decodeWindow(ctx whisper.Context, chunk []float32, promptToks []whisper.Token, threads int, out *strings.Builder) ([]whisper.Token, error) {
 	wparams := whisper.FullDefaultParams(whisper.SamplingGreedy)
 	wparams.NThreads = int32(threads)
 	wparams.PrintProgress = 0
@@ -146,16 +142,15 @@ func decodeWindow(ctx whisper.Context, chunk []float32, promptToks []int32, thre
 	wparams.SingleSegment = 1
 	wparams.NoContext = 1 // we manage context explicitly via PromptTokens
 
-	if len(promptToks) > 0 {
-		wparams.PromptTokens = uintptr(unsafe.Pointer(unsafe.SliceData(promptToks)))
-		wparams.PromptNTokens = int32(len(promptToks))
-	}
+	var refs whisper.StringRefs
+	refs.SetPromptTokens(&wparams, promptToks)
+	defer refs.KeepAlive()
 
 	if err := whisper.Full(ctx, wparams, chunk); err != nil {
 		return nil, err
 	}
 
-	var nextPrompt []int32
+	var nextPrompt []whisper.Token
 	for i := int32(0); i < whisper.FullNSegments(ctx); i++ {
 		out.WriteString(whisper.FullGetSegmentText(ctx, i))
 		for j := int32(0); j < whisper.FullNTokens(ctx, i); j++ {
@@ -163,7 +158,7 @@ func decodeWindow(ctx whisper.Context, chunk []float32, promptToks []int32, thre
 			if id == whisper.TokenNull {
 				continue
 			}
-			nextPrompt = append(nextPrompt, int32(id))
+			nextPrompt = append(nextPrompt, id)
 		}
 	}
 	return nextPrompt, nil

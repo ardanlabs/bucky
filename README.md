@@ -42,7 +42,7 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 | ----------- | ----- |
 | v1.8.6      | 0.1.x |
 
-The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
+The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`, `streaming-realtime`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
 ## Owner Information
 
@@ -178,10 +178,16 @@ $ go run ./examples/segments -tokens samples/jfk.wav
 $ go run ./examples/words samples/jfk.wav
 ```
 
-[STREAMING](examples/streaming/main.go) — sliding-window pseudo-streaming over the input file. Each window's tail tokens are carried into the next via `wparams.PromptTokens`.
+[STREAMING](examples/streaming/main.go) — sliding-window pseudo-streaming over the input file. Each window's tail tokens are carried into the next via `whisper.StringRefs.SetPromptTokens`.
 
 ```shell
 $ go run ./examples/streaming samples/jfk.wav
+```
+
+[STREAMING-REALTIME](examples/streaming-realtime/main.go) — true block-by-block streaming: native-rate audio is fed in fixed-size blocks through a stateful `audio.Resampler` (e.g. 44100 → 16000) and decoded one window at a time, again carrying context via `SetPromptTokens`.
+
+```shell
+$ go run ./examples/streaming-realtime samples/spanish.mp3
 ```
 
 ## Sample API Program — Hello Example
