@@ -20,6 +20,29 @@ func DownmixToMono(samples []float32, channels int) []float32 {
 	return out
 }
 
+// SplitChannels de-interleaves samples into one slice per channel, the
+// inverse of DownmixToMono. The input is assumed to be interleaved
+// (L0,R0,L1,R1,...). When channels <= 1 the input is returned as the single
+// element of the result so callers can treat mono and multi-channel inputs
+// uniformly.
+func SplitChannels(samples []float32, channels int) [][]float32 {
+	if channels <= 1 {
+		return [][]float32{samples}
+	}
+	frames := len(samples) / channels
+	out := make([][]float32, channels)
+	for c := range channels {
+		out[c] = make([]float32, frames)
+	}
+	for i := range frames {
+		base := i * channels
+		for c := range channels {
+			out[c][i] = samples[base+c]
+		}
+	}
+	return out
+}
+
 // ResampleLinear converts samples from inRate to outRate using linear
 // interpolation. The input is mono. Linear interpolation is fast and
 // adequate for whisper input; it does no anti-alias filtering, so very

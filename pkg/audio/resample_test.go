@@ -32,6 +32,41 @@ func TestDownmixToMono(t *testing.T) {
 	})
 }
 
+func TestSplitChannels(t *testing.T) {
+	t.Run("mono passthrough", func(t *testing.T) {
+		in := []float32{0.1, 0.2, 0.3}
+		got := SplitChannels(in, 1)
+		if len(got) != 1 {
+			t.Fatalf("len = %d, want 1", len(got))
+		}
+		if &got[0][0] != &in[0] {
+			t.Errorf("mono should pass through without copy")
+		}
+	})
+	t.Run("stereo split", func(t *testing.T) {
+		// L,R interleaved: (1,-1) (0.5,0.5) (0,0.25)
+		in := []float32{1, -1, 0.5, 0.5, 0, 0.25}
+		got := SplitChannels(in, 2)
+		want := [][]float32{
+			{1, 0.5, 0},
+			{-1, 0.5, 0.25},
+		}
+		if len(got) != len(want) {
+			t.Fatalf("channels = %d, want %d", len(got), len(want))
+		}
+		for c := range want {
+			if len(got[c]) != len(want[c]) {
+				t.Fatalf("channel %d len = %d, want %d", c, len(got[c]), len(want[c]))
+			}
+			for i := range want[c] {
+				if math.Abs(float64(got[c][i]-want[c][i])) > 1e-6 {
+					t.Errorf("got[%d][%d] = %f, want %f", c, i, got[c][i], want[c][i])
+				}
+			}
+		}
+	})
+}
+
 func TestResampleLinear(t *testing.T) {
 	t.Run("identity", func(t *testing.T) {
 		in := []float32{1, 2, 3, 4}
