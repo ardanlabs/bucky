@@ -152,3 +152,10 @@ example-words:
 	export BUCKY_LIB=$(BUCKY_LIB) && \
 	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
 	CGO_ENABLED=0 go run ./examples/words samples/jfk.wav
+
+# make example-diarize transcribes a stereo recording, labeling each channel
+# as a distinct speaker (Speaker A on the left, Speaker B on the right).
+example-diarize:
+	export BUCKY_LIB=$(BUCKY_LIB) && \
+	export BUCKY_TEST_MODEL=$(MODELS_DIR)/ggml-tiny.bin && \
+	CGO_ENABLED=0 go run ./examples/diarize samples/stereo-speakers.wav
