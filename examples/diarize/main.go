@@ -122,7 +122,7 @@ func transcribe(ctx whisper.Context, speaker int, samples []float32) ([]segment,
 
 	n := whisper.FullNSegments(ctx)
 	segs := make([]segment, 0, n)
-	for i := int32(0); i < n; i++ {
+	for i := range n {
 		segs = append(segs, segment{
 			speaker: speaker,
 			t0:      whisper.FullGetSegmentT0(ctx, i) * 10,

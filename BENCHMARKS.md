@@ -2,7 +2,7 @@
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
 (darwin/arm64) with the Metal backend baked into the upstream
-`whisper-v1.8.6-xcframework.zip`. The Go benchmark and the upstream
+`whisper-v1.9.1-xcframework.zip`. The Go benchmark and the upstream
 ggml/memcpy helpers all run against the same `lib/libwhisper.dylib`.
 
 Reproduce with:
@@ -16,7 +16,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 ## Methodology
 
 - **Sample**: `samples/jfk.wav` — 11.0 s, 16 kHz mono 16-bit PCM (vendored
-  from upstream whisper.cpp v1.8.6)
+  from upstream whisper.cpp v1.9.1)
 - **Driver**: `BenchmarkFullJFK` in `pkg/whisper/benchmark_test.go`. Greedy
   sampling, single-segment, no timestamp printing. One untimed warm-up
   iteration before `b.ResetTimer()` so Metal JIT/library init does not

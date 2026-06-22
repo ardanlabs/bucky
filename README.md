@@ -108,7 +108,7 @@ The architecture of bucky mirrors yzma file-for-file so anyone who knows yzma ca
                           │
                           ▼
               libwhisper.{dylib|so|dll}
-                  (whisper.cpp v1.8.6)
+                  (whisper.cpp v1.9.1)
 ```
 
 ## Models

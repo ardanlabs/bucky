@@ -14,7 +14,7 @@ download-models:
 clean-whisper.cpp:
 	rm -rf $(BUCKY_LIB)/*
 
-# make download-whisper.cpp VERSION=v1.8.6 to download a specific version.
+# make download-whisper.cpp VERSION=v1.9.1 to download a specific version.
 download-whisper.cpp:
 	go run . install -lib $(BUCKY_LIB) $(if $(VERSION),-v $(VERSION))
 

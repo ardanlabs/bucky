@@ -87,7 +87,7 @@ If you'd rather build whisper.cpp yourself:
 ```
 git clone https://github.com/ggml-org/whisper.cpp.git
 cd whisper.cpp
-git checkout v1.8.6
+git checkout v1.9.1
 cmake -B build -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release -j$(nproc)
 mkdir -p ../bucky/lib
