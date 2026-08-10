@@ -16,7 +16,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 ## Methodology
 
 - **Sample**: `samples/jfk.wav` — 11.0 s, 16 kHz mono 16-bit PCM (vendored
-  from upstream whisper.cpp v1.9.1)
+  from upstream whisper.cpp v1.9.2)
 - **Driver**: `BenchmarkFullJFK` in `pkg/whisper/benchmark_test.go`. Greedy
   sampling, single-segment, no timestamp printing. One untimed warm-up
   iteration before `b.ResetTimer()` so Metal JIT/library init does not
@@ -30,7 +30,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 
 | Model     | Backend | b.N |      ns/op | audio_s |    RTF |
 | --------- | ------- | --: | ---------: | ------: | -----: |
-| ggml-tiny | Metal   |  10 | 27,960,167 |   11.00 | 0.0025 |
+| ggml-tiny | Metal   |  10 | 27,774,842 |   11.00 | 0.0025 |
 
 Run command:
 
