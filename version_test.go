@@ -5,9 +5,8 @@ import (
 )
 
 func TestVersion(t *testing.T) {
-	version := Version()
-	if version == "" {
-		t.Fatal("version returned an empty string, which is invalid")
+	const want = "1.0.8"
+	if got := Version(); got != want {
+		t.Errorf("Version() = %q, want %q", got, want)
 	}
-	t.Logf("version returned: %s", version)
 }

@@ -5,6 +5,13 @@ import (
 	"testing"
 )
 
+func TestDefaultWhisperVersion(t *testing.T) {
+	const want = "v1.9.2"
+	if DefaultWhisperVersion != want {
+		t.Errorf("DefaultWhisperVersion = %q, want %q", DefaultWhisperVersion, want)
+	}
+}
+
 func TestVersionIsValid(t *testing.T) {
 	tests := []struct {
 		version string

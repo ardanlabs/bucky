@@ -1,14 +1,15 @@
 # Benchmarks
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
-(darwin/arm64) with the Metal backend baked into the upstream
-`whisper-v1.9.1-xcframework.zip`. The Go benchmark and the upstream
-ggml/memcpy helpers all run against the same `lib/libwhisper.dylib`.
+(darwin/arm64) with the Metal backend from bucky-builder's
+`whisper-v1.9.2-bin-darwin-metal-universal.zip`. The Go benchmark and
+the upstream ggml/memcpy helpers all run against the same
+`lib/libwhisper.dylib` installed by Bucky.
 
 Reproduce with:
 
 ```
-make download-whisper.cpp           # populates ./lib
+make download-whisper.cpp VERSION=v1.9.2 # populates ./lib
 make download-models                # populates ~/models
 make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 ```
@@ -28,9 +29,9 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 
 ## End-to-end transcription (greedy)
 
-| Model     | Backend | b.N |      ns/op | audio_s |    RTF |
-| --------- | ------- | --: | ---------: | ------: | -----: |
-| ggml-tiny | Metal   |  10 | 27,774,842 |   11.00 | 0.0025 |
+| Model     | Backend | b.N |      ns/op | audio_s |      RTF |
+| --------- | ------- | --: | ---------: | ------: | -------: |
+| ggml-tiny | Metal   |  10 | 28,971,246 |   11.00 | 0.002634 |
 
 Run command:
 
@@ -42,7 +43,7 @@ go test -bench=BenchmarkFullJFK -benchtime=10x -run='^$' ./pkg/whisper/
 ```
 
 The first un-timed warm-up dominates total wall time (~5–6 s) because of
-Metal library compilation; warm runs are ~28 ms for 11 s of audio. To
+Metal library compilation; warm runs are ~29 ms for 11 s of audio. To
 record numbers across `tiny`, `base`, `small`, etc., re-run with a
 different `BUCKY_BENCH_MODEL`.
 
@@ -55,27 +56,54 @@ useful for comparing backends or hosts without loading a model.
 ### `whisper_bench_memcpy_str(4)` — Apple M5 Max
 
 ```
-memcpy:   61.08 GB/s (heat-up)
-memcpy:   69.29 GB/s ( 1 thread)
-memcpy:   67.17 GB/s ( 1 thread)
-memcpy:  119.11 GB/s ( 2 thread)
-memcpy:  159.51 GB/s ( 3 thread)
-memcpy:  167.28 GB/s ( 4 thread)
+memcpy:   59.92 GB/s (heat-up)
+memcpy:   70.04 GB/s ( 1 thread)
+memcpy:   70.25 GB/s ( 1 thread)
+memcpy:  120.94 GB/s ( 2 thread)
+memcpy:  159.82 GB/s ( 3 thread)
+memcpy:  171.06 GB/s ( 4 thread)
 ```
 
 ### `whisper_bench_ggml_mul_mat_str(4)` — selected sizes
 
 | Size      |         Q4_0 |         Q8_0 |          F16 |          F32 |
 | --------- | -----------: | -----------: | -----------: | -----------: |
-| 256x256   | 112.7 GFLOPS | 229.1 GFLOPS | 201.1 GFLOPS | 138.0 GFLOPS |
-| 512x512   | 133.8 GFLOPS | 370.7 GFLOPS | 306.7 GFLOPS | 175.6 GFLOPS |
-| 1024x1024 | 138.1 GFLOPS | 428.2 GFLOPS | 359.3 GFLOPS | 183.0 GFLOPS |
-| 2048x2048 | 139.2 GFLOPS | 415.3 GFLOPS | 355.2 GFLOPS | 165.8 GFLOPS |
-| 4096x4096 | 139.4 GFLOPS | 383.2 GFLOPS | 324.0 GFLOPS | 153.9 GFLOPS |
+| 256x256   | 117.5 GFLOPS | 243.2 GFLOPS | 214.9 GFLOPS | 142.2 GFLOPS |
+| 512x512   | 140.8 GFLOPS | 368.4 GFLOPS | 312.1 GFLOPS | 172.6 GFLOPS |
+| 1024x1024 | 138.5 GFLOPS | 361.7 GFLOPS | 355.6 GFLOPS | 175.8 GFLOPS |
+| 2048x2048 | 140.8 GFLOPS | 401.6 GFLOPS | 353.3 GFLOPS | 163.0 GFLOPS |
+| 4096x4096 | 142.1 GFLOPS | 372.1 GFLOPS | 317.2 GFLOPS | 149.8 GFLOPS |
 
 Full output is produced by the `BenchMemcpyStr` / `BenchGGMLMulMatStr`
-wrappers — invoke them directly from a small driver program if you want
-the complete table.
+wrappers. The recorded values were generated with this temporary driver:
+
+```shell
+cat >/tmp/bucky-upstream-bench.go <<'EOF'
+package main
+
+import (
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/ardanlabs/bucky/pkg/whisper"
+)
+
+func main() {
+    lib := os.Getenv("BUCKY_LIB")
+    if err := whisper.Load(lib); err != nil {
+        log.Fatal(err)
+    }
+    if err := whisper.Init(lib); err != nil {
+        log.Fatal(err)
+    }
+    fmt.Print(whisper.BenchMemcpyStr(4))
+    fmt.Print(whisper.BenchGGMLMulMatStr(4))
+}
+EOF
+BUCKY_LIB=$PWD/lib go run /tmp/bucky-upstream-bench.go
+rm /tmp/bucky-upstream-bench.go
+```
 
 ## Audio decode (pure Go, no FFI)
 
@@ -87,15 +115,15 @@ the benchmarks.
 
 | Benchmark                |   ns/op |      B/op | allocs/op |           vs allocating |
 | ------------------------ | ------: | --------: | --------: | ----------------------: |
-| `BenchmarkDecodeWAV`     | 158,812 | 1,056,910 |         9 |                baseline |
-| `BenchmarkDecodeWAVInto` | 129,963 |   352,393 |         8 | **-18% time, -67% mem** |
-| `BenchmarkDecode`        | 160,447 | 1,057,029 |        13 |                baseline |
-| `BenchmarkDecodeInto`    | 131,283 |   352,513 |        12 | **-18% time, -67% mem** |
+| `BenchmarkDecodeWAV`     | 152,754 | 1,056,909 |         9 |                baseline |
+| `BenchmarkDecodeWAVInto` | 128,165 |   352,393 |         8 | **-16% time, -67% mem** |
+| `BenchmarkDecode`        | 151,468 | 1,057,028 |        13 |                baseline |
+| `BenchmarkDecodeInto`    | 128,190 |   352,513 |        12 | **-15% time, -67% mem** |
 
 The `Into` variants eliminate the per-call `[]float32` output allocation
-(~705 KB for an 11 s clip). The remaining 352 KB is the internal `[]byte`
-WAV chunk read by `readWAVData` and could be pooled in a future change if
-needed.
+(~705 KB for an 11 s clip), reducing runtime by 15–16% in this run. The
+remaining 352 KB is the internal `[]byte` WAV chunk read by `readWAVData`
+and could be pooled in a future change if needed.
 
 Run command:
 
