@@ -85,6 +85,21 @@ Search the entire repository for stale references to the previous Whisper
 version. Distinguish historical benchmark provenance from active defaults:
 do not change historical claims unless the benchmarks are actually rerun.
 
+## README compatibility table
+
+Determine whether changes in <WHISPER_VERSION> make it incompatible with the
+previous Bucky release. If a breaking change requires users to upgrade Bucky,
+update the known-compatible-versions table in `README.md`:
+
+- replace the previous row's open-ended `+` range with the last whisper.cpp
+  version compatible with that Bucky release
+- add a row beginning with <WHISPER_VERSION> and identify <BUCKY_VERSION> as
+  the minimum compatible Bucky release
+- use explicit version ranges when later releases change either boundary
+
+Do not change the table for a non-breaking whisper.cpp upgrade. In the final
+report, state whether the compatibility table changed and why.
+
 ## Local runtime validation
 
 The repository's `lib/` directory is ignored and may be updated.
