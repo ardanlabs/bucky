@@ -61,6 +61,51 @@ var whisperTranscribeCmd = &cli.Command{
 			Usage: "beam size (>0 enables beam-search sampling)",
 			Value: 0,
 		},
+		&cli.IntFlag{
+			Name:        "best-of",
+			Usage:       "number of independent decoders used for greedy sampling",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "temperature",
+			Usage:       "initial sampling temperature (0 = deterministic)",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "temperature-inc",
+			Usage:       "temperature increase for fallback decoding (0 disables fallback)",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "entropy-thold",
+			Usage:       "entropy threshold for decoder fallback",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "logprob-thold",
+			Usage:       "average log probability threshold for decoder fallback",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "no-speech-thold",
+			Usage:       "no-speech probability threshold",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "length-penalty",
+			Usage:       "sequence length penalty used when ranking candidates",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.Float64Flag{
+			Name:        "max-initial-ts",
+			Usage:       "maximum initial timestamp in seconds",
+			DefaultText: "whisper.cpp default",
+		},
+		&cli.IntFlag{
+			Name:        "max-tokens",
+			Usage:       "maximum tokens per segment (0 = no limit)",
+			DefaultText: "whisper.cpp default",
+		},
 		&cli.BoolFlag{
 			Name:  "segments",
 			Usage: "print one line per segment with timestamps",
@@ -138,9 +183,41 @@ func buildTranscribeParams(c *cli.Context) whisper.WhisperFullParams {
 		strategy = whisper.SamplingBeamSearch
 	}
 	wparams := whisper.FullDefaultParams(strategy)
+	applyTranscribeParams(c, &wparams)
+	return wparams
+}
+
+func applyTranscribeParams(c *cli.Context, wparams *whisper.WhisperFullParams) {
 	wparams.NThreads = int32(c.Int("threads"))
 	if c.Int("beam") > 0 {
 		wparams.BeamSearchBeamSize = int32(c.Int("beam"))
+	}
+	if c.IsSet("best-of") {
+		wparams.GreedyBestOf = int32(c.Int("best-of"))
+	}
+	if c.IsSet("temperature") {
+		wparams.Temperature = float32(c.Float64("temperature"))
+	}
+	if c.IsSet("temperature-inc") {
+		wparams.TemperatureInc = float32(c.Float64("temperature-inc"))
+	}
+	if c.IsSet("entropy-thold") {
+		wparams.EntropyThold = float32(c.Float64("entropy-thold"))
+	}
+	if c.IsSet("logprob-thold") {
+		wparams.LogprobThold = float32(c.Float64("logprob-thold"))
+	}
+	if c.IsSet("no-speech-thold") {
+		wparams.NoSpeechThold = float32(c.Float64("no-speech-thold"))
+	}
+	if c.IsSet("length-penalty") {
+		wparams.LengthPenalty = float32(c.Float64("length-penalty"))
+	}
+	if c.IsSet("max-initial-ts") {
+		wparams.MaxInitialTS = float32(c.Float64("max-initial-ts"))
+	}
+	if c.IsSet("max-tokens") {
+		wparams.MaxTokens = int32(c.Int("max-tokens"))
 	}
 	if c.Bool("translate") {
 		wparams.Translate = 1
@@ -151,7 +228,6 @@ func buildTranscribeParams(c *cli.Context) whisper.WhisperFullParams {
 	if !c.Bool("segments") {
 		wparams.NoTimestamps = 1
 	}
-	return wparams
 }
 
 func printTranscribeResult(ctx whisper.Context, segments bool) error {
