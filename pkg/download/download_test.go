@@ -6,9 +6,8 @@ import (
 )
 
 func TestDefaultWhisperVersion(t *testing.T) {
-	const want = "v1.9.2"
-	if DefaultWhisperVersion != want {
-		t.Errorf("DefaultWhisperVersion = %q, want %q", DefaultWhisperVersion, want)
+	if err := VersionIsValid(DefaultWhisperVersion); err != nil {
+		t.Errorf("DefaultWhisperVersion %q is invalid: %v", DefaultWhisperVersion, err)
 	}
 }
 
@@ -17,6 +16,7 @@ func TestVersionIsValid(t *testing.T) {
 		version string
 		wantErr bool
 	}{
+		{"v1.9.3", false},
 		{"v1.9.2", false},
 		{"v1.9.1", false},
 		{"v1.7.0", false},

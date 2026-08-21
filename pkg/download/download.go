@@ -42,7 +42,7 @@ const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 // installs and CI runs do not depend on the GitHub releases API. Bumping
 // this value is a deliberate, reviewable change that should be paired with
 // re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
-const DefaultWhisperVersion = "v1.9.2"
+const DefaultWhisperVersion = "v1.9.3"
 
 var (
 	// RetryCount is how many times the package will retry to obtain the latest whisper.cpp version.
@@ -113,6 +113,9 @@ func getLatestVersion() (string, error) {
 func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version string) (location, filename string, err error) {
 	buckyBuilder := fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
 	upstream := fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
+	if version == "v1.9.3" {
+		upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/b4938"
+	}
 
 	switch os {
 	case Darwin:
@@ -468,7 +471,7 @@ func extractWindowsZip(zipPath, dest string) error {
 }
 
 // VersionIsValid checks if the provided version string looks like a
-// whisper.cpp release tag (e.g. "v1.9.2").
+// whisper.cpp release tag.
 func VersionIsValid(version string) error {
 	if !strings.HasPrefix(version, "v") {
 		return ErrInvalidVersion
