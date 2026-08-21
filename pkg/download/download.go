@@ -471,7 +471,7 @@ func extractWindowsZip(zipPath, dest string) error {
 }
 
 // VersionIsValid checks if the provided version string looks like a
-// whisper.cpp release tag (e.g. "v1.9.3").
+// whisper.cpp release tag.
 func VersionIsValid(version string) error {
 	if !strings.HasPrefix(version, "v") {
 		return ErrInvalidVersion
