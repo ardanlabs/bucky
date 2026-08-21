@@ -6,7 +6,7 @@ import (
 )
 
 func TestDefaultWhisperVersion(t *testing.T) {
-	const want = "v1.9.3"
+	const want = "v1.9.2"
 	if DefaultWhisperVersion != want {
 		t.Errorf("DefaultWhisperVersion = %q, want %q", DefaultWhisperVersion, want)
 	}

@@ -188,7 +188,7 @@ var getFunc = get
 //	arch:      "amd64" or "arm64"
 //	os:        "linux", "darwin", or "windows"
 //	processor: "cpu", "cuda", "metal", or "vulkan"
-//	version:   the desired whisper.cpp release tag, e.g. "v1.9.3"
+//	version:   the desired whisper.cpp release tag, e.g. "v1.9.2"
 //	dest:      destination directory for the extracted libraries
 func Get(architecture string, operatingSystem string, processor string, version string, dest string) error {
 	return GetWithProgress(architecture, operatingSystem, processor, version, dest, ProgressTracker)
