@@ -112,7 +112,11 @@ func getLatestVersion() (string, error) {
 // asset filename for the given parameters.
 func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version string) (location, filename string, err error) {
 	buckyBuilder := fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
-	upstream := fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
+	upstreamVersion := version
+	if version == "v1.9.3" {
+		upstreamVersion = "b4938"
+	}
+	upstream := fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", upstreamVersion)
 
 	switch os {
 	case Darwin:
@@ -140,7 +144,7 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 			filename = fmt.Sprintf("whisper-%s-bin-windows-cpu-x64.zip", version)
 		case CUDA:
 			// CUDA is still pulled straight from whisper.cpp upstream;
-			// bucky-builder does not build Windows CUDA yet.
+			// b4938 is the upstream build for v1.9.3 and contains its assets.
 			location = upstream
 			filename = "whisper-cublas-12.4.0-bin-x64.zip"
 		default:

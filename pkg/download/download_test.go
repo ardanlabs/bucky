@@ -61,7 +61,8 @@ func TestLibraryName(t *testing.T) {
 
 func TestGetDownloadLocationAndFilename(t *testing.T) {
 	const buckyBuilder = "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.3"
-	const upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.3"
+	const upstream193 = "https://github.com/ggml-org/whisper.cpp/releases/download/b4938"
+	const upstream192 = "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.2"
 
 	tests := []struct {
 		name         string
@@ -106,7 +107,16 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			os:           Windows,
 			proc:         CUDA,
 			version:      "v1.9.3",
-			wantLocation: upstream,
+			wantLocation: upstream193,
+			wantFile:     "whisper-cublas-12.4.0-bin-x64.zip",
+		},
+		{
+			name:         "windows amd64 cuda preserves other upstream versions",
+			arch:         AMD64,
+			os:           Windows,
+			proc:         CUDA,
+			version:      "v1.9.2",
+			wantLocation: upstream192,
 			wantFile:     "whisper-cublas-12.4.0-bin-x64.zip",
 		},
 		{
