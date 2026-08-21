@@ -60,21 +60,19 @@ func main() {
 	fmt.Fprintln(w, "-----\t------\t-------")
 	tableRow(w, "Headers", checkStatus(0, len(api.Issues)), "%d declarations, %d parse issues", api.ExportedDeclarations, len(api.Issues))
 	tableRow(w, "API coverage", checkStatus(len(report.Missing), 0), "%d/%d functions bound (%d missing)", report.Covered, report.Required, len(report.Missing))
-	tableRow(w, "FFI bindings", checkStatus(len(report.Violations)+len(ffi.Issues), len(report.Unverified)), "%d/%d clean, %d violations, %d not verified", report.Clean, report.Bindings, len(report.Violations), len(report.Unverified))
+	tableRow(w, "FFI bindings", checkStatus(len(report.Violations)+len(report.Signedness)+len(ffi.Issues), len(report.Unverified)), "%d/%d ABI clean; %d ABI, %d signedness mismatches; %d not verified", report.Clean, report.Bindings, len(report.Violations), len(report.Signedness), len(report.Unverified))
 	tableRow(w, "Constants and enums", checkStatus(len(enumReport.Violations)+len(enumReport.Partial), len(enumReport.Unverified)), "%d/%d constants clean, %d/%d enums complete", enumReport.Clean, enumReport.Constants, enumReport.Complete, enumReport.Enums)
-	tableRow(w, "Go calls and structs", checkStatus(len(goReport.Violations), len(goReport.Unverified)), "%d/%d clean, %d violations, %d not verified", goReport.Clean, goReport.Calls, len(goReport.Violations), len(goReport.Unverified))
-	tableRow(w, "Semantic enums", checkStatus(goReport.EnumArgs-goReport.CleanEnumArgs, 0), "%d/%d arguments correct", goReport.CleanEnumArgs, goReport.EnumArgs)
 	unsafeStrings := goReport.StringArgs - goReport.CleanStrings - goReport.UnverifiedStrings
-	tableRow(w, "C strings", checkStatus(unsafeStrings, goReport.UnverifiedStrings), "%d/%d NUL-terminated", goReport.CleanStrings, goReport.StringArgs)
+	enumMismatches := goReport.EnumArgs - goReport.CleanEnumArgs
+	otherMismatches := max(0, len(goReport.Violations)-enumMismatches-unsafeStrings)
+	tableRow(w, "Go calls and structs", checkStatus(len(goReport.Violations)+len(goReport.Signedness), len(goReport.Unverified)), "%d/%d clean; %d enum, %d C string, %d signedness, %d other mismatches; %d not verified", goReport.Clean, goReport.Calls, enumMismatches, unsafeStrings, len(goReport.Signedness), otherMismatches, len(goReport.Unverified))
 	tableRow(w, "Callbacks", checkStatus(len(callbackReport.Violations), len(callbackReport.Unverified)), "%d/%d signatures clean, %d/%d struct fields traced", callbackReport.Clean, callbackReport.Callbacks, callbackReport.TracedFields, callbackReport.PointerFields)
-	signedness := len(report.Signedness) + len(goReport.Signedness)
-	tableRow(w, "Signedness", checkStatus(0, signedness), "%d findings", signedness)
 	tableRow(w, "Deprecated APIs", checkStatus(len(goReport.Deprecation), 0), "%d/%d wrappers documented", goReport.CleanDeprecated, goReport.Deprecated)
 	_ = w.Flush()
 	if len(ffi.Issues) > 0 {
 		os.Exit(2)
 	}
-	if len(report.Missing) > 0 || len(report.Violations) > 0 || len(enumReport.Violations) > 0 || len(enumReport.Partial) > 0 || len(goReport.Violations) > 0 || len(goReport.Deprecation) > 0 || len(callbackReport.Violations) > 0 {
+	if len(report.Missing) > 0 || len(report.Violations) > 0 || len(report.Signedness) > 0 || len(enumReport.Violations) > 0 || len(enumReport.Partial) > 0 || len(goReport.Violations) > 0 || len(goReport.Signedness) > 0 || len(goReport.Deprecation) > 0 || len(callbackReport.Violations) > 0 {
 		os.Exit(1)
 	}
 }
