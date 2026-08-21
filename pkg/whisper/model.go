@@ -14,7 +14,7 @@ import (
 type ModelLoader struct {
 	Context unsafe.Pointer
 	Read    unsafe.Pointer
-	Eof     unsafe.Pointer
+	EOF     unsafe.Pointer
 	Close   unsafe.Pointer
 }
 
