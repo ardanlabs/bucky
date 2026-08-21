@@ -460,6 +460,16 @@ func parseFields(ts []tokenC) []CField {
 	if len(ts) == 0 {
 		return nil
 	}
+	if len(ts) > 3 && ts[0].text == "struct" && ts[1].text == "{" {
+		close := matching(ts, 1, "{", "}")
+		if close > 1 {
+			var fields []CField
+			for _, stmt := range splitTokens(ts[2:close], ";") {
+				fields = append(fields, parseFields(stmt)...)
+			}
+			return fields
+		}
+	}
 	raw := typeText(ts)
 	if name, _, ok := functionPointerName(ts); ok {
 		return []CField{{Name: name, Type: CType{Raw: "function pointer"}, Count: 1, Offset: -1, Raw: raw}}
@@ -493,10 +503,12 @@ func parseFields(ts []tokenC) []CField {
 }
 
 func unsupportedAggregate(body []tokenC) string {
-	for _, tok := range body {
+	for i, tok := range body {
 		switch tok.text {
-		case "{":
-			return "contains a nested union or anonymous aggregate"
+		case "union":
+			if i+1 < len(body) && (body[i+1].text == "{" || i+2 < len(body) && body[i+2].text == "{") {
+				return "contains a nested union"
+			}
 		case ":":
 			return "contains a bitfield"
 		}

@@ -31,6 +31,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "parse C API: %v\n", err)
 		os.Exit(1)
 	}
+	ffi, err := ParseFFI("../../pkg/whisper")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse FFI bindings: %v\n", err)
+		os.Exit(2)
+	}
+	report := CheckFFI(api, ffi)
 
 	fmt.Printf("whisper.cpp C API: %s (%s)\n", *version, source)
 	fmt.Printf("  functions:  %d\n", len(api.Functions))
@@ -40,4 +46,21 @@ func main() {
 	fmt.Printf("  constants:  %d resolved, %d unresolved\n", api.ResolvedConstants(), api.UnresolvedConstants())
 	fmt.Printf("  callbacks:  %d\n", len(api.Callbacks))
 	fmt.Printf("  typedefs:   %d\n", len(api.Typedefs))
+	fmt.Printf("FFI bindings: %d (%d matched, %d clean, %d not verified, %d violations, %d parse issues)\n",
+		report.Bindings, report.Matched, report.Clean, len(report.Unverified), len(report.Violations), len(ffi.Issues))
+	for _, issue := range ffi.Issues {
+		fmt.Printf("  NOT PARSED %s:%d: %s\n", issue.File, issue.Line, issue.Detail)
+	}
+	for _, item := range report.Unverified {
+		fmt.Printf("  NOT VERIFIED %s\n", item)
+	}
+	for _, violation := range report.Violations {
+		fmt.Printf("  MISMATCH %s (%s:%d): %s\n", violation.Symbol, violation.File, violation.Line, violation.Detail)
+	}
+	if len(ffi.Issues) > 0 {
+		os.Exit(2)
+	}
+	if len(report.Violations) > 0 {
+		os.Exit(1)
+	}
 }

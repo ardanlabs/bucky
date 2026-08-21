@@ -17,8 +17,8 @@ const versionURL = "https://ardanlabs.github.io/bucky-builder/version.json"
 var requiredHeaders = []headerSpec{
 	{Name: "whisper.h", Path: "include/whisper.h", APIMacros: []string{"WHISPER_API"}},
 	{Name: "ggml.h", Path: "ggml/include/ggml.h", APIMacros: []string{"GGML_API"}},
-	{Name: "ggml-backend.h", Path: "ggml/include/ggml-backend.h", APIMacros: []string{"GGML_BACKEND_API"}},
-	{Name: "ggml-cpu.h", Path: "ggml/include/ggml-cpu.h", APIMacros: []string{"GGML_CPU_API"}},
+	{Name: "ggml-backend.h", Path: "ggml/include/ggml-backend.h", APIMacros: []string{"GGML_API", "GGML_BACKEND_API"}},
+	{Name: "ggml-cpu.h", Path: "ggml/include/ggml-cpu.h", APIMacros: []string{"GGML_BACKEND_API"}},
 }
 
 type headerSpec struct {
