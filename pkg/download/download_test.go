@@ -6,7 +6,7 @@ import (
 )
 
 func TestDefaultWhisperVersion(t *testing.T) {
-	const want = "v1.9.2"
+	const want = "v1.9.3"
 	if DefaultWhisperVersion != want {
 		t.Errorf("DefaultWhisperVersion = %q, want %q", DefaultWhisperVersion, want)
 	}
@@ -17,7 +17,7 @@ func TestVersionIsValid(t *testing.T) {
 		version string
 		wantErr bool
 	}{
-		{"v1.9.2", false},
+		{"v1.9.3", false},
 		{"v1.9.1", false},
 		{"v1.7.0", false},
 		{"1.8.4", true},
@@ -60,8 +60,8 @@ func TestLibraryName(t *testing.T) {
 }
 
 func TestGetDownloadLocationAndFilename(t *testing.T) {
-	const buckyBuilder = "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.2"
-	const upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.2"
+	const buckyBuilder = "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.3"
+	const upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.3"
 
 	tests := []struct {
 		name         string
@@ -78,34 +78,34 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:         ARM64,
 			os:           Darwin,
 			proc:         CPU,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-darwin-metal-universal.zip",
+			wantFile:     "whisper-v1.9.3-bin-darwin-metal-universal.zip",
 		},
 		{
 			name:         "darwin arm64 metal uses bucky-builder xcframework",
 			arch:         ARM64,
 			os:           Darwin,
 			proc:         Metal,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-darwin-metal-universal.zip",
+			wantFile:     "whisper-v1.9.3-bin-darwin-metal-universal.zip",
 		},
 		{
 			name:         "windows amd64 cpu uses bucky-builder",
 			arch:         AMD64,
 			os:           Windows,
 			proc:         CPU,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-windows-cpu-x64.zip",
+			wantFile:     "whisper-v1.9.3-bin-windows-cpu-x64.zip",
 		},
 		{
 			name:         "windows amd64 cuda still uses upstream",
 			arch:         AMD64,
 			os:           Windows,
 			proc:         CUDA,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: upstream,
 			wantFile:     "whisper-cublas-12.4.0-bin-x64.zip",
 		},
@@ -114,52 +114,52 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:         AMD64,
 			os:           Linux,
 			proc:         CPU,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-ubuntu-cpu-x64.tar.gz",
+			wantFile:     "whisper-v1.9.3-bin-ubuntu-cpu-x64.tar.gz",
 		},
 		{
 			name:         "linux amd64 cuda",
 			arch:         AMD64,
 			os:           Linux,
 			proc:         CUDA,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-ubuntu-cuda-x64.tar.gz",
+			wantFile:     "whisper-v1.9.3-bin-ubuntu-cuda-x64.tar.gz",
 		},
 		{
 			name:         "linux amd64 vulkan",
 			arch:         AMD64,
 			os:           Linux,
 			proc:         Vulkan,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-ubuntu-vulkan-x64.tar.gz",
+			wantFile:     "whisper-v1.9.3-bin-ubuntu-vulkan-x64.tar.gz",
 		},
 		{
 			name:         "linux arm64 cpu",
 			arch:         ARM64,
 			os:           Linux,
 			proc:         CPU,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-ubuntu-cpu-arm64.tar.gz",
+			wantFile:     "whisper-v1.9.3-bin-ubuntu-cpu-arm64.tar.gz",
 		},
 		{
 			name:         "linux arm64 cuda",
 			arch:         ARM64,
 			os:           Linux,
 			proc:         CUDA,
-			version:      "v1.9.2",
+			version:      "v1.9.3",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.2-bin-ubuntu-cuda-arm64.tar.gz",
+			wantFile:     "whisper-v1.9.3-bin-ubuntu-cuda-arm64.tar.gz",
 		},
 		{
 			name:    "linux metal unsupported",
 			arch:    AMD64,
 			os:      Linux,
 			proc:    Metal,
-			version: "v1.9.2",
+			version: "v1.9.3",
 			wantErr: ErrUnknownProcessor,
 		},
 		{
@@ -167,7 +167,7 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:    ARM64,
 			os:      Windows,
 			proc:    CPU,
-			version: "v1.9.2",
+			version: "v1.9.3",
 			wantErr: ErrUnsupportedPlatform,
 		},
 	}
