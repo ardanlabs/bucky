@@ -9,17 +9,31 @@ import (
 	"github.com/jupiterrider/ffi"
 )
 
-// TODO(PR #4 followup): expose whisper_init_from_buffer_with_params and the
-// _no_state variants (whisper_init_from_file_with_params_no_state, etc.) when
-// a downstream caller asks. Today bucky always loads from a file path and
-// always allocates the default state via whisper_init_from_file_with_params,
-// so these are deferred.
+// ModelLoader mirrors struct whisper_model_loader. Callback fields hold C ABI
+// function pointers with the read, eof, and close signatures from whisper.h.
+type ModelLoader struct {
+	Context unsafe.Pointer
+	Read    unsafe.Pointer
+	EOF     unsafe.Pointer
+	Close   unsafe.Pointer
+}
 
 var (
 	// WHISPER_API struct whisper_context * whisper_init_from_file_with_params(
 	//                              const char * path_model,
 	//                              struct whisper_context_params params);
-	initFromFileWithParamsFunc ffi.Fun
+	initFromFileWithParamsFunc          ffi.Fun
+	initFromBufferWithParamsFunc        ffi.Fun
+	initWithParamsFunc                  ffi.Fun
+	initFromFileWithParamsNoStateFunc   ffi.Fun
+	initFromBufferWithParamsNoStateFunc ffi.Fun
+	initWithParamsNoStateFunc           ffi.Fun
+	initFromFileFunc                    ffi.Fun
+	initFromBufferFunc                  ffi.Fun
+	initFunc                            ffi.Fun
+	initFromFileNoStateFunc             ffi.Fun
+	initFromBufferNoStateFunc           ffi.Fun
+	initNoStateFunc                     ffi.Fun
 
 	// WHISPER_API int whisper_model_n_vocab      (struct whisper_context * ctx);
 	modelNVocabFunc ffi.Fun
@@ -54,6 +68,30 @@ func loadModelFuncs(lib ffi.Lib) error {
 
 	if initFromFileWithParamsFunc, err = lib.Prep("whisper_init_from_file_with_params", &ffi.TypePointer, &ffi.TypePointer, &ffiTypeContextParams); err != nil {
 		return loadError("whisper_init_from_file_with_params", err)
+	}
+	initSpecs := []struct {
+		name string
+		fn   *ffi.Fun
+		args []*ffi.Type
+	}{
+		{"whisper_init_from_buffer_with_params", &initFromBufferWithParamsFunc, []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64, &ffiTypeContextParams}},
+		{"whisper_init_with_params", &initWithParamsFunc, []*ffi.Type{&ffi.TypePointer, &ffiTypeContextParams}},
+		{"whisper_init_from_file_with_params_no_state", &initFromFileWithParamsNoStateFunc, []*ffi.Type{&ffi.TypePointer, &ffiTypeContextParams}},
+		{"whisper_init_from_buffer_with_params_no_state", &initFromBufferWithParamsNoStateFunc, []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64, &ffiTypeContextParams}},
+		{"whisper_init_with_params_no_state", &initWithParamsNoStateFunc, []*ffi.Type{&ffi.TypePointer, &ffiTypeContextParams}},
+		{"whisper_init_from_file", &initFromFileFunc, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_init_from_buffer", &initFromBufferFunc, []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64}},
+		{"whisper_init", &initFunc, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_init_from_file_no_state", &initFromFileNoStateFunc, []*ffi.Type{&ffi.TypePointer}},
+		{"whisper_init_from_buffer_no_state", &initFromBufferNoStateFunc, []*ffi.Type{&ffi.TypePointer, &ffi.TypeUint64}},
+		{"whisper_init_no_state", &initNoStateFunc, []*ffi.Type{&ffi.TypePointer}},
+	}
+	for _, spec := range initSpecs {
+		fn, prepErr := lib.Prep(spec.name, &ffi.TypePointer, spec.args...)
+		if prepErr != nil {
+			return loadError(spec.name, prepErr)
+		}
+		*spec.fn = fn
 	}
 
 	type sym struct {
@@ -111,6 +149,133 @@ func InitFromFileWithParams(pathModel string, params ContextParams) (Context, er
 		return ctx, errors.New("whisper_init_from_file_with_params returned NULL")
 	}
 	return ctx, nil
+}
+
+func contextInitResult(ctx Context, name string) (Context, error) {
+	if ctx == 0 {
+		return 0, errors.New(name + " returned NULL")
+	}
+	return ctx, nil
+}
+
+func validateModelPath(pathModel string) error {
+	if _, err := os.Stat(pathModel); errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
+// InitFromBufferWithParams loads a model from a memory buffer.
+func InitFromBufferWithParams(buffer unsafe.Pointer, bufferSize uint64, params ContextParams) (Context, error) {
+	var ctx Context
+	initFromBufferWithParamsFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&buffer), unsafe.Pointer(&bufferSize), unsafe.Pointer(&params))
+	return contextInitResult(ctx, "whisper_init_from_buffer_with_params")
+}
+
+// InitWithParams loads a model through loader callbacks.
+func InitWithParams(loader *ModelLoader, params ContextParams) (Context, error) {
+	var ctx Context
+	initWithParamsFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&loader), unsafe.Pointer(&params))
+	return contextInitResult(ctx, "whisper_init_with_params")
+}
+
+// InitFromFileWithParamsNoState loads a model without allocating its default state.
+func InitFromFileWithParamsNoState(path string, params ContextParams) (Context, error) {
+	if err := validateModelPath(path); err != nil {
+		return 0, err
+	}
+	cpath, err := utils.BytePtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	var ctx Context
+	initFromFileWithParamsNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&cpath), unsafe.Pointer(&params))
+	return contextInitResult(ctx, "whisper_init_from_file_with_params_no_state")
+}
+
+// InitFromBufferWithParamsNoState loads a buffer model without allocating its default state.
+func InitFromBufferWithParamsNoState(buffer unsafe.Pointer, size uint64, params ContextParams) (Context, error) {
+	var ctx Context
+	initFromBufferWithParamsNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&buffer), unsafe.Pointer(&size), unsafe.Pointer(&params))
+	return contextInitResult(ctx, "whisper_init_from_buffer_with_params_no_state")
+}
+
+// InitWithParamsNoState loads through callbacks without allocating a default state.
+func InitWithParamsNoState(loader *ModelLoader, params ContextParams) (Context, error) {
+	var ctx Context
+	initWithParamsNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&loader), unsafe.Pointer(&params))
+	return contextInitResult(ctx, "whisper_init_with_params_no_state")
+}
+
+// InitFromFile loads a model using default parameters.
+//
+// Deprecated: use InitFromFileWithParams instead.
+func InitFromFile(path string) (Context, error) {
+	if err := validateModelPath(path); err != nil {
+		return 0, err
+	}
+	cpath, err := utils.BytePtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	var ctx Context
+	initFromFileFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&cpath))
+	return contextInitResult(ctx, "whisper_init_from_file")
+}
+
+// InitFromBuffer loads a buffer model using default parameters.
+//
+// Deprecated: use InitFromBufferWithParams instead.
+func InitFromBuffer(buffer unsafe.Pointer, size uint64) (Context, error) {
+	var ctx Context
+	initFromBufferFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&buffer), unsafe.Pointer(&size))
+	return contextInitResult(ctx, "whisper_init_from_buffer")
+}
+
+// InitWithLoader loads a model through callbacks using default parameters.
+//
+// Deprecated: use InitWithParams instead.
+//
+// It is named InitWithLoader because Init is the package's existing backend
+// initialization API.
+func InitWithLoader(loader *ModelLoader) (Context, error) {
+	var ctx Context
+	initFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&loader))
+	return contextInitResult(ctx, "whisper_init")
+}
+
+// InitFromFileNoState loads a model without a default state.
+//
+// Deprecated: use InitFromFileWithParamsNoState instead.
+func InitFromFileNoState(path string) (Context, error) {
+	if err := validateModelPath(path); err != nil {
+		return 0, err
+	}
+	cpath, err := utils.BytePtrFromString(path)
+	if err != nil {
+		return 0, err
+	}
+	var ctx Context
+	initFromFileNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&cpath))
+	return contextInitResult(ctx, "whisper_init_from_file_no_state")
+}
+
+// InitFromBufferNoState loads a buffer model without a default state.
+//
+// Deprecated: use InitFromBufferWithParamsNoState instead.
+func InitFromBufferNoState(buffer unsafe.Pointer, size uint64) (Context, error) {
+	var ctx Context
+	initFromBufferNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&buffer), unsafe.Pointer(&size))
+	return contextInitResult(ctx, "whisper_init_from_buffer_no_state")
+}
+
+// InitNoState loads through callbacks without a default state.
+//
+// Deprecated: use InitWithParamsNoState instead.
+func InitNoState(loader *ModelLoader) (Context, error) {
+	var ctx Context
+	initNoStateFunc.Call(unsafe.Pointer(&ctx), unsafe.Pointer(&loader))
+	return contextInitResult(ctx, "whisper_init_no_state")
 }
 
 func callInt32Accessor(fn ffi.Fun, ctx Context) int32 {

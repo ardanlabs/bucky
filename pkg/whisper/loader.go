@@ -48,6 +48,10 @@ func Load(path string) error {
 		return err
 	}
 
+	if err := loadLowLevelFuncs(lib); err != nil {
+		return err
+	}
+
 	if err := loadParamsFuncs(lib); err != nil {
 		return err
 	}
@@ -69,6 +73,10 @@ func Load(path string) error {
 	}
 
 	if err := loadStateFuncs(lib); err != nil {
+		return err
+	}
+
+	if err := loadTimingsFuncs(lib); err != nil {
 		return err
 	}
 

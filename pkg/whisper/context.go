@@ -3,6 +3,7 @@ package whisper
 import (
 	"unsafe"
 
+	"github.com/ardanlabs/bucky/pkg/utils"
 	"github.com/jupiterrider/ffi"
 )
 
@@ -51,6 +52,15 @@ var ffiTypeContextParams = ffi.NewType(
 var (
 	// WHISPER_API struct whisper_context_params whisper_context_default_params(void);
 	contextDefaultParamsFunc ffi.Fun
+	// WHISPER_API struct whisper_context_params * whisper_context_default_params_by_ref(void);
+	contextDefaultParamsByRefFunc ffi.Fun
+	// WHISPER_API void whisper_free_context_params(struct whisper_context_params * params);
+	freeContextParamsFunc ffi.Fun
+
+	// WHISPER_API int whisper_ctx_init_openvino_encoder(...);
+	ctxInitOpenVINOEncoderFunc ffi.Fun
+	// WHISPER_API int whisper_ctx_init_openvino_encoder_with_state(...);
+	ctxInitOpenVINOEncoderWithStateFunc ffi.Fun
 
 	// WHISPER_API void whisper_free(struct whisper_context * ctx);
 	freeFunc ffi.Fun
@@ -76,6 +86,18 @@ func loadContextFuncs(lib ffi.Lib) error {
 
 	if contextDefaultParamsFunc, err = lib.Prep("whisper_context_default_params", &ffiTypeContextParams); err != nil {
 		return loadError("whisper_context_default_params", err)
+	}
+	if contextDefaultParamsByRefFunc, err = lib.Prep("whisper_context_default_params_by_ref", &ffi.TypePointer); err != nil {
+		return loadError("whisper_context_default_params_by_ref", err)
+	}
+	if freeContextParamsFunc, err = lib.Prep("whisper_free_context_params", &ffi.TypeVoid, &ffi.TypePointer); err != nil {
+		return loadError("whisper_free_context_params", err)
+	}
+	if ctxInitOpenVINOEncoderFunc, err = lib.Prep("whisper_ctx_init_openvino_encoder", &ffi.TypeSint32, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer); err != nil {
+		return loadError("whisper_ctx_init_openvino_encoder", err)
+	}
+	if ctxInitOpenVINOEncoderWithStateFunc, err = lib.Prep("whisper_ctx_init_openvino_encoder_with_state", &ffi.TypeSint32, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypePointer); err != nil {
+		return loadError("whisper_ctx_init_openvino_encoder_with_state", err)
 	}
 
 	if freeFunc, err = lib.Prep("whisper_free", &ffi.TypeVoid, &ffi.TypePointer); err != nil {
@@ -111,6 +133,84 @@ func ContextDefaultParams() ContextParams {
 	var p ContextParams
 	contextDefaultParamsFunc.Call(unsafe.Pointer(&p))
 	return p
+}
+
+// ContextDefaultParamsByRef returns library-allocated default parameters.
+// The returned pointer must be released with FreeContextParams.
+func ContextDefaultParamsByRef() *ContextParams {
+	var p *ContextParams
+	contextDefaultParamsByRefFunc.Call(unsafe.Pointer(&p))
+	return p
+}
+
+// FreeContextParams releases parameters returned by ContextDefaultParamsByRef.
+func FreeContextParams(params *ContextParams) {
+	if params != nil {
+		freeContextParamsFunc.Call(nil, unsafe.Pointer(&params))
+	}
+}
+
+// CtxInitOpenVINOEncoder enables OpenVINO encoding for the context.
+func CtxInitOpenVINOEncoder(ctx Context, modelPath, device, cacheDir string) (int32, error) {
+	var model, cache *byte
+	var err error
+	if modelPath != "" {
+		model, err = utils.BytePtrFromString(modelPath)
+		if err != nil {
+			return 0, err
+		}
+	}
+	dev, err := utils.BytePtrFromString(device)
+	if err != nil {
+		return 0, err
+	}
+	if cacheDir != "" {
+		cache, err = utils.BytePtrFromString(cacheDir)
+		if err != nil {
+			return 0, err
+		}
+	}
+	var result ffi.Arg
+	ctxInitOpenVINOEncoderFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&model),
+		unsafe.Pointer(&dev),
+		unsafe.Pointer(&cache),
+	)
+	return int32(result), nil
+}
+
+// CtxInitOpenVINOEncoderWithState enables OpenVINO encoding for a state.
+func CtxInitOpenVINOEncoderWithState(ctx Context, state State, modelPath, device, cacheDir string) (int32, error) {
+	var model, cache *byte
+	var err error
+	if modelPath != "" {
+		model, err = utils.BytePtrFromString(modelPath)
+		if err != nil {
+			return 0, err
+		}
+	}
+	dev, err := utils.BytePtrFromString(device)
+	if err != nil {
+		return 0, err
+	}
+	if cacheDir != "" {
+		cache, err = utils.BytePtrFromString(cacheDir)
+		if err != nil {
+			return 0, err
+		}
+	}
+	var result ffi.Arg
+	ctxInitOpenVINOEncoderWithStateFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&ctx),
+		unsafe.Pointer(&state),
+		unsafe.Pointer(&model),
+		unsafe.Pointer(&dev),
+		unsafe.Pointer(&cache),
+	)
+	return int32(result), nil
 }
 
 // Free releases a Context previously returned by ModelInitFromFile.

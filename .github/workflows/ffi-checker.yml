@@ -1,0 +1,37 @@
+name: FFI Checker
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cmd/ffi-checker
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: cmd/ffi-checker/go.mod
+          cache-dependency-path: cmd/ffi-checker/go.sum
+
+      - name: Test checker
+        run: go test -count=1 ./...
+
+      - name: Check Whisper FFI
+        run: go run .
