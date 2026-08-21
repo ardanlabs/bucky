@@ -17,6 +17,9 @@ var (
 	// WHISPER_API const char * whisper_lang_str(int id);
 	langStrFunc ffi.Fun
 
+	// WHISPER_API const char * whisper_lang_str_full(int id);
+	langStrFullFunc ffi.Fun
+
 	// WHISPER_API int whisper_lang_auto_detect(
 	//             struct whisper_context * ctx,
 	//                                int   offset_ms,
@@ -46,6 +49,10 @@ func loadLangFuncs(lib ffi.Lib) error {
 
 	if langStrFunc, err = lib.Prep("whisper_lang_str", &ffi.TypePointer, &ffi.TypeSint32); err != nil {
 		return loadError("whisper_lang_str", err)
+	}
+
+	if langStrFullFunc, err = lib.Prep("whisper_lang_str_full", &ffi.TypePointer, &ffi.TypeSint32); err != nil {
+		return loadError("whisper_lang_str_full", err)
 	}
 
 	if langAutoDetectFunc, err = lib.Prep("whisper_lang_auto_detect",
@@ -87,6 +94,18 @@ func LangID(lang string) int32 {
 func LangStr(id int32) string {
 	var ptr *byte
 	langStrFunc.Call(unsafe.Pointer(&ptr), unsafe.Pointer(&id))
+	if ptr == nil {
+		return ""
+	}
+	return utils.BytePtrToString(ptr)
+}
+
+// LangStrFull returns the full language name for the given id (e.g. 2 ->
+// "german"), or an empty string if the id is invalid. The C string is owned
+// by whisper.cpp and has static lifetime; the returned Go string is a copy.
+func LangStrFull(id int32) string {
+	var ptr *byte
+	langStrFullFunc.Call(unsafe.Pointer(&ptr), unsafe.Pointer(&id))
 	if ptr == nil {
 		return ""
 	}
