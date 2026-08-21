@@ -49,6 +49,24 @@ var ffiTypeVadContextParams = ffi.NewType(
 )
 
 var (
+	// WHISPER_API int whisper_full_n_vad_segments(struct whisper_context * ctx);
+	fullNVadSegmentsFunc ffi.Fun
+
+	// WHISPER_API int whisper_full_n_vad_segments_from_state(struct whisper_state * state);
+	fullNVadSegmentsFromStateFunc ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_vad_segment_t0(struct whisper_context * ctx, int i);
+	fullGetVadSegmentT0Func ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_vad_segment_t0_from_state(struct whisper_state * state, int i);
+	fullGetVadSegmentT0FromStateFunc ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_vad_segment_t1(struct whisper_context * ctx, int i);
+	fullGetVadSegmentT1Func ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_vad_segment_t1_from_state(struct whisper_state * state, int i);
+	fullGetVadSegmentT1FromStateFunc ffi.Fun
+
 	// WHISPER_API struct whisper_vad_params whisper_vad_default_params(void);
 	vadDefaultParamsFunc ffi.Fun
 
@@ -60,11 +78,25 @@ var (
 	//             struct whisper_vad_context_params params);
 	vadInitFromFileWithParamsFunc ffi.Fun
 
+	// WHISPER_API struct whisper_vad_context * whisper_vad_init_with_params(
+	//             struct whisper_model_loader * loader,
+	//             struct whisper_vad_context_params params);
+	vadInitWithParamsFunc ffi.Fun
+
 	// WHISPER_API bool whisper_vad_detect_speech(
 	//             struct whisper_vad_context * vctx,
 	//                            const float * samples,
 	//                                    int   n_samples);
 	vadDetectSpeechFunc ffi.Fun
+
+	// WHISPER_API bool whisper_vad_detect_speech_no_reset(
+	//             struct whisper_vad_context * vctx,
+	//                            const float * samples,
+	//                                    int   n_samples);
+	vadDetectSpeechNoResetFunc ffi.Fun
+
+	// WHISPER_API void whisper_vad_reset_state(struct whisper_vad_context * vctx);
+	vadResetStateFunc ffi.Fun
 
 	// WHISPER_API int     whisper_vad_n_probs(struct whisper_vad_context * vctx);
 	vadNProbsFunc ffi.Fun
@@ -103,6 +135,30 @@ var (
 func loadVadFuncs(lib ffi.Lib) error {
 	var err error
 
+	if fullNVadSegmentsFunc, err = lib.Prep("whisper_full_n_vad_segments", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
+		return loadError("whisper_full_n_vad_segments", err)
+	}
+
+	if fullNVadSegmentsFromStateFunc, err = lib.Prep("whisper_full_n_vad_segments_from_state", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
+		return loadError("whisper_full_n_vad_segments_from_state", err)
+	}
+
+	if fullGetVadSegmentT0Func, err = lib.Prep("whisper_full_get_vad_segment_t0", &ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
+		return loadError("whisper_full_get_vad_segment_t0", err)
+	}
+
+	if fullGetVadSegmentT0FromStateFunc, err = lib.Prep("whisper_full_get_vad_segment_t0_from_state", &ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
+		return loadError("whisper_full_get_vad_segment_t0_from_state", err)
+	}
+
+	if fullGetVadSegmentT1Func, err = lib.Prep("whisper_full_get_vad_segment_t1", &ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
+		return loadError("whisper_full_get_vad_segment_t1", err)
+	}
+
+	if fullGetVadSegmentT1FromStateFunc, err = lib.Prep("whisper_full_get_vad_segment_t1_from_state", &ffi.TypeSint64, &ffi.TypePointer, &ffi.TypeSint32); err != nil {
+		return loadError("whisper_full_get_vad_segment_t1_from_state", err)
+	}
+
 	if vadDefaultParamsFunc, err = lib.Prep("whisper_vad_default_params", &ffiTypeVadParams); err != nil {
 		return loadError("whisper_vad_default_params", err)
 	}
@@ -117,10 +173,26 @@ func loadVadFuncs(lib ffi.Lib) error {
 		return loadError("whisper_vad_init_from_file_with_params", err)
 	}
 
+	if vadInitWithParamsFunc, err = lib.Prep("whisper_vad_init_with_params",
+		&ffi.TypePointer, &ffi.TypePointer, &ffiTypeVadContextParams,
+	); err != nil {
+		return loadError("whisper_vad_init_with_params", err)
+	}
+
 	if vadDetectSpeechFunc, err = lib.Prep("whisper_vad_detect_speech",
 		&ffi.TypeUint8, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32,
 	); err != nil {
 		return loadError("whisper_vad_detect_speech", err)
+	}
+
+	if vadDetectSpeechNoResetFunc, err = lib.Prep("whisper_vad_detect_speech_no_reset",
+		&ffi.TypeUint8, &ffi.TypePointer, &ffi.TypePointer, &ffi.TypeSint32,
+	); err != nil {
+		return loadError("whisper_vad_detect_speech_no_reset", err)
+	}
+
+	if vadResetStateFunc, err = lib.Prep("whisper_vad_reset_state", &ffi.TypeVoid, &ffi.TypePointer); err != nil {
+		return loadError("whisper_vad_reset_state", err)
 	}
 
 	if vadNProbsFunc, err = lib.Prep("whisper_vad_n_probs", &ffi.TypeSint32, &ffi.TypePointer); err != nil {
@@ -170,6 +242,70 @@ func loadVadFuncs(lib ffi.Lib) error {
 	return nil
 }
 
+// FullNVadSegments returns the number of speech segments detected by the
+// internal VAD for the context's default state.
+func FullNVadSegments(ctx Context) int32 {
+	if ctx == 0 {
+		return 0
+	}
+	var result ffi.Arg
+	fullNVadSegmentsFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&ctx))
+	return int32(result)
+}
+
+// FullNVadSegmentsFromState returns the number of speech segments detected by
+// the internal VAD for state.
+func FullNVadSegmentsFromState(state State) int32 {
+	if state == 0 {
+		return 0
+	}
+	var result ffi.Arg
+	fullNVadSegmentsFromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state))
+	return int32(result)
+}
+
+// FullGetVadSegmentT0 returns the VAD segment start time in centiseconds.
+func FullGetVadSegmentT0(ctx Context, i int32) int64 {
+	if ctx == 0 {
+		return 0
+	}
+	var result int64
+	fullGetVadSegmentT0Func.Call(unsafe.Pointer(&result), unsafe.Pointer(&ctx), unsafe.Pointer(&i))
+	return result
+}
+
+// FullGetVadSegmentT0FromState returns the VAD segment start time in
+// centiseconds for state.
+func FullGetVadSegmentT0FromState(state State, i int32) int64 {
+	if state == 0 {
+		return 0
+	}
+	var result int64
+	fullGetVadSegmentT0FromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state), unsafe.Pointer(&i))
+	return result
+}
+
+// FullGetVadSegmentT1 returns the VAD segment end time in centiseconds.
+func FullGetVadSegmentT1(ctx Context, i int32) int64 {
+	if ctx == 0 {
+		return 0
+	}
+	var result int64
+	fullGetVadSegmentT1Func.Call(unsafe.Pointer(&result), unsafe.Pointer(&ctx), unsafe.Pointer(&i))
+	return result
+}
+
+// FullGetVadSegmentT1FromState returns the VAD segment end time in
+// centiseconds for state.
+func FullGetVadSegmentT1FromState(state State, i int32) int64 {
+	if state == 0 {
+		return 0
+	}
+	var result int64
+	fullGetVadSegmentT1FromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state), unsafe.Pointer(&i))
+	return result
+}
+
 // VadDefaultParams returns the default VadParams populated by the C library.
 func VadDefaultParams() VadParams {
 	var p VadParams
@@ -209,6 +345,24 @@ func VadInitFromFileWithParams(pathModel string, params VadContextParams) (VadCo
 	return vctx, nil
 }
 
+// VadInitWithParams loads a VAD model through loader. The returned VadContext
+// must be released with VadFree when no longer needed.
+func VadInitWithParams(loader *ModelLoader, params VadContextParams) (VadContext, error) {
+	if loader == nil {
+		return 0, errors.New("whisper.VadInitWithParams: nil loader")
+	}
+	var vctx VadContext
+	vadInitWithParamsFunc.Call(
+		unsafe.Pointer(&vctx),
+		unsafe.Pointer(&loader),
+		unsafe.Pointer(&params),
+	)
+	if vctx == 0 {
+		return 0, errors.New("whisper_vad_init_with_params returned NULL")
+	}
+	return vctx, nil
+}
+
 // VadDetectSpeech runs the VAD model over the provided 16 kHz mono float32
 // samples. Returns true on success. The probabilities can be retrieved via
 // VadNProbs/VadProbs and turned into segments via VadSegmentsFromProbs.
@@ -227,6 +381,33 @@ func VadDetectSpeech(vctx VadContext, samples []float32) bool {
 		unsafe.Pointer(&nSamples),
 	)
 	return result.Bool()
+}
+
+// VadDetectSpeechNoReset runs the VAD model without resetting its LSTM state.
+// Use VadResetState between streaming utterances.
+func VadDetectSpeechNoReset(vctx VadContext, samples []float32) bool {
+	if vctx == 0 || len(samples) == 0 {
+		return false
+	}
+	samplesPtr := unsafe.Pointer(unsafe.SliceData(samples))
+	nSamples := int32(len(samples))
+
+	var result ffi.Arg
+	vadDetectSpeechNoResetFunc.Call(
+		unsafe.Pointer(&result),
+		unsafe.Pointer(&vctx),
+		unsafe.Pointer(&samplesPtr),
+		unsafe.Pointer(&nSamples),
+	)
+	return result.Bool()
+}
+
+// VadResetState resets the VAD context's LSTM hidden and cell states.
+func VadResetState(vctx VadContext) {
+	if vctx == 0 {
+		return
+	}
+	vadResetStateFunc.Call(nil, unsafe.Pointer(&vctx))
 }
 
 // VadNProbs returns the number of speech probabilities computed by the most

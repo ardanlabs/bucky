@@ -59,6 +59,12 @@ var (
 
 	// WHISPER_API float whisper_full_get_token_p_from_state(struct whisper_state * state, int i_segment, int i_token);
 	fullGetTokenPFromStateFunc ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_token_t0_from_state(struct whisper_state * state, int i_segment, int i_token);
+	fullGetTokenT0FromStateFunc ffi.Fun
+
+	// WHISPER_API int64_t whisper_full_get_token_t1_from_state(struct whisper_state * state, int i_segment, int i_token);
+	fullGetTokenT1FromStateFunc ffi.Fun
 )
 
 func loadStateFuncs(lib ffi.Lib) error {
@@ -84,6 +90,8 @@ func loadStateFuncs(lib ffi.Lib) error {
 		{"whisper_full_get_token_id_from_state", &fullGetTokenIDFromStateFunc, &ffi.TypeSint32, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
 		{"whisper_full_get_token_data_from_state", &fullGetTokenDataFromStateFunc, &ffiTypeTokenData, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
 		{"whisper_full_get_token_p_from_state", &fullGetTokenPFromStateFunc, &ffi.TypeFloat, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
+		{"whisper_full_get_token_t0_from_state", &fullGetTokenT0FromStateFunc, &ffi.TypeSint64, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
+		{"whisper_full_get_token_t1_from_state", &fullGetTokenT1FromStateFunc, &ffi.TypeSint64, []*ffi.Type{&ffi.TypePointer, &ffi.TypeSint32, &ffi.TypeSint32}},
 	}
 
 	for _, s := range specs {
@@ -296,5 +304,25 @@ func FullGetTokenPFromState(state State, iSegment, iToken int32) float32 {
 	}
 	var result float32
 	fullGetTokenPFromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state), unsafe.Pointer(&iSegment), unsafe.Pointer(&iToken))
+	return result
+}
+
+// FullGetTokenT0FromState returns the token start time in 10 ms units.
+func FullGetTokenT0FromState(state State, iSegment, iToken int32) int64 {
+	if state == 0 {
+		return 0
+	}
+	var result int64
+	fullGetTokenT0FromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state), unsafe.Pointer(&iSegment), unsafe.Pointer(&iToken))
+	return result
+}
+
+// FullGetTokenT1FromState returns the token end time in 10 ms units.
+func FullGetTokenT1FromState(state State, iSegment, iToken int32) int64 {
+	if state == 0 {
+		return 0
+	}
+	var result int64
+	fullGetTokenT1FromStateFunc.Call(unsafe.Pointer(&result), unsafe.Pointer(&state), unsafe.Pointer(&iSegment), unsafe.Pointer(&iToken))
 	return result
 }

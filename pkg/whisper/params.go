@@ -227,8 +227,7 @@ func loadParamsFuncs(lib ffi.Lib) error {
 // passing to Full.
 func FullDefaultParams(strategy SamplingStrategy) WhisperFullParams {
 	var p WhisperFullParams
-	s := int32(strategy)
-	fullDefaultParamsFunc.Call(unsafe.Pointer(&p), unsafe.Pointer(&s))
+	fullDefaultParamsFunc.Call(unsafe.Pointer(&p), unsafe.Pointer(&strategy))
 	return p
 }
 
@@ -238,8 +237,7 @@ func FullDefaultParams(strategy SamplingStrategy) WhisperFullParams {
 // the struct layout.
 func FullDefaultParamsByRef(strategy SamplingStrategy) *WhisperFullParams {
 	var ptr *WhisperFullParams
-	s := int32(strategy)
-	fullDefaultParamsByRefFunc.Call(unsafe.Pointer(&ptr), unsafe.Pointer(&s))
+	fullDefaultParamsByRefFunc.Call(unsafe.Pointer(&ptr), unsafe.Pointer(&strategy))
 	return ptr
 }
 
