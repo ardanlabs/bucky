@@ -174,6 +174,34 @@ typedef void (*broken_callback);
 	}
 }
 
+func TestReportsMissingWhisperBindings(t *testing.T) {
+	api := fixtureAPI(t)
+	ffi := &FFICatalog{Bindings: map[string][]FFIBinding{
+		"whisper_n_len": {{CName: "whisper_n_len"}},
+	}}
+
+	report := CheckFFI(api, ffi)
+	if report.Required != 3 || report.Covered != 1 {
+		t.Fatalf("coverage = %d/%d", report.Covered, report.Required)
+	}
+	if len(report.Missing) != 2 || report.Missing[0].Name != "whisper_name" || report.Missing[1].Name != "whisper_old" {
+		t.Fatalf("missing = %#v", report.Missing)
+	}
+}
+
+func TestCoverageIgnoresNonWhisperHeaders(t *testing.T) {
+	api := &CAPI{Functions: map[string]CFunction{
+		"whisper_version": {Name: "whisper_version", File: "whisper.h"},
+		"ggml_init":       {Name: "ggml_init", File: "ggml.h"},
+	}}
+	ffi := &FFICatalog{Bindings: map[string][]FFIBinding{}}
+
+	report := CheckFFI(api, ffi)
+	if report.Required != 1 || len(report.Missing) != 1 || report.Missing[0].Name != "whisper_version" {
+		t.Fatalf("coverage report = %#v", report)
+	}
+}
+
 func TestConflictingConstantDefinitionsRemainUnresolved(t *testing.T) {
 	const header = "#define VALUE 1\n#define VALUE 2\n"
 	api, err := ParseCAPI([]Header{{Name: "constants.h", Source: header}})

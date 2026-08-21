@@ -3,13 +3,13 @@ package main
 import (
 	"fmt"
 	"go/ast"
-	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/tools/go/packages"
 )
 
 type FFIType struct {
@@ -23,6 +23,7 @@ type FFIType struct {
 
 type FFIBinding struct {
 	CName      string
+	GoVar      string
 	Return     FFIType
 	Parameters []FFIType
 	Variadic   bool
@@ -54,6 +55,9 @@ type FFIReport struct {
 	Bindings   int
 	Matched    int
 	Clean      int
+	Required   int
+	Covered    int
+	Missing    []CFunction
 	Violations []FFIViolation
 	Unverified []string
 }
@@ -74,33 +78,42 @@ var ffiScalars = map[string]FFIType{
 }
 
 type ffiParser struct {
-	fset    *token.FileSet
-	catalog *FFICatalog
-	pending map[string]ast.Expr
-	handled map[*ast.CallExpr]bool
+	fset     *token.FileSet
+	catalog  *FFICatalog
+	pending  map[string]ast.Expr
+	handled  map[*ast.CallExpr]bool
+	callVars map[*ast.CallExpr]string
 }
 
 func ParseFFI(dir string) (*FFICatalog, error) {
-	fset := token.NewFileSet()
-	packages, err := parser.ParseDir(fset, dir, func(info os.FileInfo) bool {
-		return !strings.HasSuffix(info.Name(), "_test.go")
-	}, 0)
+	loaded, err := packages.Load(&packages.Config{
+		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax,
+		Dir:  dir,
+	}, ".")
 	if err != nil {
 		return nil, err
 	}
-	pkg := packages["whisper"]
-	if pkg == nil {
+	if len(loaded) != 1 || loaded[0].Name != "whisper" {
 		return nil, fmt.Errorf("package whisper not found in %s", dir)
 	}
+	pkg := loaded[0]
+	if len(pkg.Errors) > 0 {
+		return nil, fmt.Errorf("parse package whisper: %s", pkg.Errors[0])
+	}
+	fset := pkg.Fset
 
 	catalog := &FFICatalog{Types: map[string]FFIType{}, Bindings: map[string][]FFIBinding{}}
-	p := ffiParser{fset: fset, catalog: catalog, pending: map[string]ast.Expr{}, handled: map[*ast.CallExpr]bool{}}
+	p := ffiParser{
+		fset: fset, catalog: catalog, pending: map[string]ast.Expr{},
+		handled: map[*ast.CallExpr]bool{}, callVars: map[*ast.CallExpr]string{},
+	}
 	for name, typ := range ffiScalars {
 		catalog.Types[name] = typ
 	}
 
-	for _, file := range pkg.Files {
+	for _, file := range pkg.Syntax {
 		p.collectTypeDeclarations(file)
+		p.collectBindingVars(file)
 	}
 	for range len(p.pending) + 1 {
 		for name, expr := range p.pending {
@@ -116,13 +129,54 @@ func ParseFFI(dir string) (*FFICatalog, error) {
 		catalog.Issues = append(catalog.Issues, FFIIssue{File: pos.Filename, Line: pos.Line, Detail: "cannot resolve FFI type " + name})
 	}
 
-	for _, file := range pkg.Files {
+	for _, file := range pkg.Syntax {
 		p.collectRangeBindings(file)
 	}
-	for _, file := range pkg.Files {
+	for _, file := range pkg.Syntax {
 		p.collectDirectBindings(file)
 	}
 	return catalog, nil
+}
+
+func (p *ffiParser) collectBindingVars(file *ast.File) {
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok || len(assign.Rhs) != 1 {
+			return true
+		}
+		call, ok := prepCall(assign.Rhs[0])
+		if !ok {
+			return true
+		}
+		for _, lhs := range assign.Lhs {
+			id, ok := lhs.(*ast.Ident)
+			if ok && id.Name != "_" && id.Name != "err" && id.Name != "perr" {
+				p.callVars[call] = bindingAlias(file, id.Name)
+				break
+			}
+		}
+		return true
+	})
+}
+
+func bindingAlias(file *ast.File, name string) string {
+	alias := name
+	ast.Inspect(file, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		rhs, ok := assign.Rhs[0].(*ast.Ident)
+		if !ok || rhs.Name != name {
+			return true
+		}
+		lhs, ok := assign.Lhs[0].(*ast.Ident)
+		if ok && strings.HasSuffix(lhs.Name, "Func") {
+			alias = lhs.Name
+		}
+		return true
+	})
+	return alias
 }
 
 func (p *ffiParser) collectTypeDeclarations(file *ast.File) {
@@ -246,7 +300,7 @@ func (p *ffiParser) collectRangeBindings(file *ast.File) {
 				}
 				p.handled[call] = true
 				for _, row := range rows {
-					p.addBinding(call, row, value.Name, row["@pos"])
+					p.addBinding(call, row, value.Name, row["@pos"], rowBindingVar(row))
 				}
 				return true
 			})
@@ -254,6 +308,19 @@ func (p *ffiParser) collectRangeBindings(file *ast.File) {
 		})
 		return false
 	})
+}
+
+func rowBindingVar(row map[string]ast.Expr) string {
+	for _, key := range []string{"out", "fn"} {
+		unary, ok := row[key].(*ast.UnaryExpr)
+		if !ok || unary.Op != token.AND {
+			continue
+		}
+		if id, ok := unary.X.(*ast.Ident); ok {
+			return id.Name
+		}
+	}
+	return ""
 }
 
 func localStructTypes(body *ast.BlockStmt) map[string][]string {
@@ -373,12 +440,12 @@ func (p *ffiParser) collectDirectBindings(file *ast.File) {
 			p.catalog.Issues = append(p.catalog.Issues, FFIIssue{File: pos.Filename, Line: pos.Line, Detail: "cannot resolve dynamic ffi.Prep binding"})
 			return true
 		}
-		p.addBinding(call, nil, "", call)
+		p.addBinding(call, nil, "", call, p.callVars[call])
 		return true
 	})
 }
 
-func (p *ffiParser) addBinding(call *ast.CallExpr, row map[string]ast.Expr, rowName string, position ast.Expr) {
+func (p *ffiParser) addBinding(call *ast.CallExpr, row map[string]ast.Expr, rowName string, position ast.Expr, goVar string) {
 	resolve := func(expr ast.Expr) ast.Expr {
 		if sel, ok := expr.(*ast.SelectorExpr); ok {
 			if id, ok := sel.X.(*ast.Ident); ok && id.Name == rowName {
@@ -401,7 +468,7 @@ func (p *ffiParser) addBinding(call *ast.CallExpr, row map[string]ast.Expr, rowN
 
 	sel := call.Fun.(*ast.SelectorExpr)
 	start := 1
-	binding := FFIBinding{CName: name, NFixed: -1}
+	binding := FFIBinding{CName: name, GoVar: goVar, NFixed: -1}
 	if sel.Sel.Name == "PrepVar" || sel.Sel.Name == "MustPrepVar" {
 		binding.Variadic = true
 		start = 2
@@ -464,6 +531,23 @@ func (p *ffiParser) issue(expr ast.Expr, detail string) {
 
 func CheckFFI(api *CAPI, ffi *FFICatalog) FFIReport {
 	var report FFIReport
+	functionNames := make([]string, 0, len(api.Functions))
+	for name, fn := range api.Functions {
+		if fn.File == "whisper.h" {
+			functionNames = append(functionNames, name)
+		}
+	}
+	sort.Strings(functionNames)
+	for _, name := range functionNames {
+		fn := api.Functions[name]
+		report.Required++
+		if len(ffi.Bindings[name]) == 0 {
+			report.Missing = append(report.Missing, fn)
+			continue
+		}
+		report.Covered++
+	}
+
 	names := make([]string, 0, len(ffi.Bindings))
 	for name := range ffi.Bindings {
 		names = append(names, name)
