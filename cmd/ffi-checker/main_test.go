@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -202,6 +203,68 @@ func TestCoverageIgnoresNonWhisperHeaders(t *testing.T) {
 	}
 }
 
+func TestEnumCheckingFindsValuePartialAndSemanticMismatches(t *testing.T) {
+	const header = `
+enum whisper_expected {
+    WHISPER_EXPECTED_A = 0,
+    WHISPER_EXPECTED_B = 1,
+};
+enum whisper_other {
+    WHISPER_OTHER_A = 0,
+};
+#define WHISPER_MAGIC 3
+WHISPER_API void fixture_enum(enum whisper_expected value);
+WHISPER_API void fixture_enum_ok(enum whisper_expected value);
+`
+	api, err := ParseCAPI([]Header{{Name: "whisper.h", Source: header, APIMacros: []string{"WHISPER_API"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enums, err := CheckGoEnums(api, "testdata/enumfixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enums.Constants != 3 || enums.Clean != 1 || len(enums.Violations) != 2 {
+		t.Fatalf("constant report = %#v", enums)
+	}
+	violations := map[string]bool{}
+	for _, violation := range enums.Violations {
+		violations[violation.Symbol] = true
+	}
+	if !violations["WHISPER_EXPECTED_A"] || !violations["WHISPER_MAGIC"] {
+		t.Fatalf("constant violations = %#v", enums.Violations)
+	}
+	if enums.Enums != 2 || enums.Complete != 1 {
+		t.Fatalf("enum coverage = %d enums, %d complete", enums.Enums, enums.Complete)
+	}
+	if len(enums.Partial) != 1 || enums.Partial[0].Name != "whisper_expected" || len(enums.Partial[0].Missing) != 1 || enums.Partial[0].Missing[0].Name != "WHISPER_EXPECTED_B" {
+		t.Fatalf("partial enums = %#v", enums.Partial)
+	}
+
+	ffi := &FFICatalog{Bindings: map[string][]FFIBinding{
+		"fixture_enum": {{
+			CName: "fixture_enum", GoVar: "semanticFunc",
+			Return:     FFIType{Name: "TypeVoid", Kind: CVoid, Size: 0},
+			Parameters: []FFIType{{Name: "TypeSint32", Kind: CSigned, Size: 4}},
+		}},
+		"fixture_enum_ok": {{
+			CName: "fixture_enum_ok", GoVar: "semanticOKFunc",
+			Return:     FFIType{Name: "TypeVoid", Kind: CVoid, Size: 0},
+			Parameters: []FFIType{{Name: "TypeSint32", Kind: CSigned, Size: 4}},
+		}},
+	}}
+	calls, err := CheckGoCalls(api, ffi, enums.GoTypes, "testdata/enumfixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls.EnumArgs != 2 || calls.CleanEnumArgs != 1 || len(calls.Violations) != 1 {
+		t.Fatalf("semantic enum report = %#v", calls)
+	}
+	if calls.Violations[0].Symbol != "fixture_enum" || !strings.Contains(calls.Violations[0].Detail, "enumfixture.Other mirrors enum whisper_other") {
+		t.Fatalf("semantic enum violation = %#v", calls.Violations[0])
+	}
+}
+
 func TestConflictingConstantDefinitionsRemainUnresolved(t *testing.T) {
 	const header = "#define VALUE 1\n#define VALUE 2\n"
 	api, err := ParseCAPI([]Header{{Name: "constants.h", Source: header}})
@@ -211,6 +274,132 @@ func TestConflictingConstantDefinitionsRemainUnresolved(t *testing.T) {
 	c := api.Constants["VALUE"]
 	if c.Resolved || c.Reason != "multiple conditional definitions have different values" {
 		t.Fatalf("VALUE = %#v", c)
+	}
+}
+
+func TestStructMemberNamesDetectTransposition(t *testing.T) {
+	c := []ffiLeaf{
+		{Offset: 0, Size: 4, Kind: CSigned, Path: "left"},
+		{Offset: 4, Size: 4, Kind: CSigned, Path: "right"},
+	}
+	clean := []goLeaf{
+		{offset: 0, size: 4, kind: CSigned, path: "Left"},
+		{offset: 4, size: 4, kind: CSigned, path: "Right"},
+	}
+	if problems, unverified := compareMemberNames(c, clean); len(problems) != 0 || len(unverified) != 0 {
+		t.Fatalf("clean member names = problems %#v, unverified %#v", problems, unverified)
+	}
+
+	swapped := []goLeaf{
+		{offset: 0, size: 4, kind: CSigned, path: "Right"},
+		{offset: 4, size: 4, kind: CSigned, path: "Left"},
+	}
+	problems, unverified := compareMemberNames(c, swapped)
+	if len(problems) != 2 || len(unverified) != 0 || !strings.Contains(problems[0], "transposed") {
+		t.Fatalf("swapped member names = problems %#v, unverified %#v", problems, unverified)
+	}
+}
+
+func TestCallbackCheckingFindsSignatureAndStoredPointerMismatches(t *testing.T) {
+	const header = `
+typedef void (*whisper_good_callback)(int32_t value, void * data);
+typedef bool (*whisper_bad_callback)(void * data);
+typedef struct whisper_params {
+    whisper_good_callback good_callback;
+    whisper_bad_callback bad_callback;
+} whisper_params;
+`
+	api, err := ParseCAPI([]Header{{Name: "whisper.h", Source: header}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := CheckCallbacks(api, "testdata/callbackfixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Callbacks != 2 || report.Clean != 1 {
+		t.Fatalf("callback signature report = %#v", report)
+	}
+	if report.PointerFields != 2 || report.TracedFields != 2 {
+		t.Fatalf("callback field report = %#v", report)
+	}
+	if len(report.Violations) < 2 {
+		t.Fatalf("callback violations = %#v", report.Violations)
+	}
+	var signature, store bool
+	for _, violation := range report.Violations {
+		signature = signature || (violation.Symbol == "whisper_bad_callback" && strings.Contains(violation.Detail, "arg0"))
+		store = store || (violation.Symbol == "whisper_params.good_callback" && strings.Contains(violation.Detail, "whisper_bad_callback"))
+	}
+	if !signature || !store {
+		t.Fatalf("callback violations = %#v", report.Violations)
+	}
+}
+
+func TestStringSignednessAndDeprecationChecking(t *testing.T) {
+	const header = `
+#define WHISPER_API
+WHISPER_API void fixture_string_bad(const char * value);
+WHISPER_API void fixture_string_good(const char * value);
+WHISPER_DEPRECATED(WHISPER_API void fixture_deprecated_bad(void), "use another function");
+WHISPER_DEPRECATED(WHISPER_API void fixture_deprecated_good(void), "use another function");
+WHISPER_API void fixture_signed_pointer(int32_t * value);
+`
+	api, err := ParseCAPI([]Header{{Name: "whisper.h", Source: header, APIMacros: []string{"WHISPER_API"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	void := FFIType{Name: "TypeVoid", Kind: CVoid, Size: 0}
+	pointer := FFIType{Name: "TypePointer", Kind: CPointer, Size: 8}
+	ffi := &FFICatalog{Bindings: map[string][]FFIBinding{
+		"fixture_string_bad":      {{CName: "fixture_string_bad", GoVar: "stringBadFunc", Return: void, Parameters: []FFIType{pointer}}},
+		"fixture_string_good":     {{CName: "fixture_string_good", GoVar: "stringGoodFunc", Return: void, Parameters: []FFIType{pointer}}},
+		"fixture_deprecated_bad":  {{CName: "fixture_deprecated_bad", GoVar: "deprecatedBadFunc", Return: void}},
+		"fixture_deprecated_good": {{CName: "fixture_deprecated_good", GoVar: "deprecatedGoodFunc", Return: void}},
+		"fixture_signed_pointer":  {{CName: "fixture_signed_pointer", GoVar: "signedPointerFunc", Return: void, Parameters: []FFIType{pointer}}},
+	}}
+	report, err := CheckGoCalls(api, ffi, nil, "testdata/gocheckfixture")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.StringArgs != 2 || report.CleanStrings != 1 {
+		t.Fatalf("C string report = %#v", report)
+	}
+	var unterminated bool
+	for _, violation := range report.Violations {
+		unterminated = unterminated || violation.Symbol == "fixture_string_bad" && strings.Contains(violation.Detail, "without a terminator")
+	}
+	if !unterminated {
+		t.Fatalf("C string violations = %#v", report.Violations)
+	}
+	if report.Deprecated != 2 || report.CleanDeprecated != 1 || len(report.Deprecation) != 1 || report.Deprecation[0].Symbol != "fixture_deprecated_bad" {
+		t.Fatalf("deprecation report = %#v", report)
+	}
+	if len(report.Signedness) != 1 || report.Signedness[0].Symbol != "fixture_signed_pointer" {
+		t.Fatalf("signedness report = %#v", report.Signedness)
+	}
+}
+
+func TestFFISignednessIsReportedWithoutBecomingABIMismatch(t *testing.T) {
+	api := &CAPI{
+		Functions: map[string]CFunction{
+			"fixture_sign": {
+				Name: "fixture_sign", File: "whisper.h",
+				ReturnType: CType{Raw: "int32_t", Kind: CSigned, Size: 4},
+				Parameters: []CParameter{{Type: CType{Raw: "uint32_t", Kind: CUnsigned, Size: 4}}},
+			},
+		},
+	}
+	ffi := &FFICatalog{Bindings: map[string][]FFIBinding{
+		"fixture_sign": {{
+			CName:      "fixture_sign",
+			Return:     FFIType{Name: "TypeUint32", Kind: CUnsigned, Size: 4},
+			Parameters: []FFIType{{Name: "TypeSint32", Kind: CSigned, Size: 4}},
+		}},
+	}}
+	report := CheckFFI(api, ffi)
+	if len(report.Violations) != 0 || len(report.Signedness) != 2 {
+		t.Fatalf("FFI signedness report = %#v", report)
 	}
 }
 

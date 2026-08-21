@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"path/filepath"
 	"sort"
@@ -12,11 +13,21 @@ import (
 )
 
 type GoCallReport struct {
-	Calls      int
-	Clean      int
-	Violations []FFIViolation
-	Unverified []string
-	seen       map[string]bool
+	Calls             int
+	Clean             int
+	EnumArgs          int
+	CleanEnumArgs     int
+	StringArgs        int
+	CleanStrings      int
+	UnverifiedStrings int
+	Deprecated        int
+	CleanDeprecated   int
+	Violations        []FFIViolation
+	Signedness        []FFIViolation
+	Deprecation       []FFIViolation
+	Unverified        []string
+	seen              map[string]bool
+	deprecatedSeen    map[string]bool
 }
 
 type goValue struct {
@@ -30,6 +41,7 @@ type callTemplate struct {
 	ReceiverParam int
 	Call          *ast.CallExpr
 	Pkg           *packages.Package
+	Body          *ast.BlockStmt
 }
 
 var goTargets = []struct {
@@ -40,7 +52,7 @@ var goTargets = []struct {
 	{"amd64", types.SizesFor("gc", "amd64")},
 }
 
-func CheckGoCalls(api *CAPI, ffi *FFICatalog, dir string) (GoCallReport, error) {
+func CheckGoCalls(api *CAPI, ffi *FFICatalog, enumTypes map[string]string, dir string) (GoCallReport, error) {
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles |
 			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo |
@@ -68,7 +80,7 @@ func CheckGoCalls(api *CAPI, ffi *FFICatalog, dir string) (GoCallReport, error) 
 		}
 	}
 
-	report := GoCallReport{seen: map[string]bool{}}
+	report := GoCallReport{seen: map[string]bool{}, deprecatedSeen: map[string]bool{}}
 	for _, bindings := range ffi.Bindings {
 		for _, binding := range bindings {
 			if binding.GoVar == "" {
@@ -92,7 +104,7 @@ func CheckGoCalls(api *CAPI, ffi *FFICatalog, dir string) (GoCallReport, error) 
 				}
 				if receiver, ok := callReceiver(call); ok {
 					for _, binding := range byVar[receiver] {
-						checkGoCall(api, binding, pkg, call, &report)
+						checkGoCall(api, binding, pkg, call, fn.Body, fn, enumTypes, &report)
 					}
 				}
 				id, ok := call.Fun.(*ast.Ident)
@@ -108,7 +120,7 @@ func CheckGoCalls(api *CAPI, ffi *FFICatalog, dir string) (GoCallReport, error) 
 						continue
 					}
 					for _, binding := range byVar[bindingVar.Name] {
-						checkGoCall(api, binding, helper.Pkg, helper.Call, &report)
+						checkGoCall(api, binding, helper.Pkg, helper.Call, helper.Body, fn, enumTypes, &report)
 					}
 				}
 				return true
@@ -126,6 +138,7 @@ func CheckGoCalls(api *CAPI, ffi *FFICatalog, dir string) (GoCallReport, error) 
 
 	sort.Strings(report.Unverified)
 	report.seen = nil
+	report.deprecatedSeen = nil
 	return report, nil
 }
 
@@ -159,7 +172,7 @@ func collectCallHelpers(pkg *packages.Package) map[string][]callTemplate {
 					return true
 				}
 				if parameter, ok := params[receiver]; ok {
-					result[fn.Name.Name] = append(result[fn.Name.Name], callTemplate{parameter, call, pkg})
+					result[fn.Name.Name] = append(result[fn.Name.Name], callTemplate{parameter, call, pkg, fn.Body})
 				}
 				return true
 			})
@@ -180,7 +193,7 @@ func callReceiver(call *ast.CallExpr) (string, bool) {
 	return id.Name, true
 }
 
-func checkGoCall(api *CAPI, binding FFIBinding, pkg *packages.Package, call *ast.CallExpr, report *GoCallReport) {
+func checkGoCall(api *CAPI, binding FFIBinding, pkg *packages.Package, call *ast.CallExpr, body *ast.BlockStmt, wrapper *ast.FuncDecl, enumTypes map[string]string, report *GoCallReport) {
 	report.seen[bindingKey(binding)] = true
 	report.Calls++
 	pos := pkg.Fset.Position(call.Pos())
@@ -188,7 +201,7 @@ func checkGoCall(api *CAPI, binding FFIBinding, pkg *packages.Package, call *ast
 	if len(call.Args) == 0 {
 		problems = append(problems, "Call has no return-buffer argument")
 	} else {
-		checkGoReturn(binding, pkg, call.Args[0], &problems, &unverified)
+		checkGoReturn(api, binding, pkg, call.Args[0], &problems, &unverified, report)
 	}
 
 	var args []ast.Expr
@@ -206,13 +219,32 @@ func checkGoCall(api *CAPI, binding FFIBinding, pkg *packages.Package, call *ast
 			continue
 		}
 		compareGoValue(binding.Parameters[i], value, fmt.Sprintf("arg%d", i), &problems, &unverified)
-		if value.Kind == CStructValue && binding.Parameters[i].Kind == CStructValue {
-			compareGoLayouts(binding.Parameters[i], value.Type, fmt.Sprintf("arg%d", i), &problems, &unverified)
-		}
 		if fn, ok := api.Functions[binding.CName]; ok && i < len(fn.Parameters) {
-			comparePointerTarget(api, fn.Parameters[i].Type, value.Type, fmt.Sprintf("arg%d", i), &problems, &unverified)
+			if detail := goValueSignedness(fn.Parameters[i].Type, value.Type, value.Kind, fmt.Sprintf("arg%d", i)); detail != "" {
+				appendSignedness(report, binding, pos, []string{detail})
+			}
+			if value.Kind == CStructValue && binding.Parameters[i].Kind == CStructValue {
+				compareGoLayouts(api, fn.Parameters[i].Type, binding.Parameters[i], value.Type, fmt.Sprintf("arg%d", i), &problems, &unverified)
+				appendSignedness(report, binding, pos, goStructSignedness(api, fn.Parameters[i].Type, value.Type, fmt.Sprintf("arg%d", i)))
+			}
+			comparePointerTarget(api, fn.Parameters[i].Type, value.Type, fmt.Sprintf("arg%d", i), &problems, &unverified, &report.Signedness, binding, pos)
+			compareEnumArgument(api, fn.Parameters[i].Type, value.Type, enumTypes, fmt.Sprintf("arg%d", i), &problems, report)
+			if isCCharPointer(fn.Parameters[i].Type.Raw) {
+				report.StringArgs++
+				checked, clean, detail := checkCStringArgument(fn.Parameters[i].Type, args[i], body)
+				switch {
+				case !checked:
+					report.UnverifiedStrings++
+					unverified = append(unverified, fmt.Sprintf("arg%d C string buffer source is unresolved", i))
+				case clean:
+					report.CleanStrings++
+				default:
+					problems = append(problems, fmt.Sprintf("arg%d: %s", i, detail))
+				}
+			}
 		}
 	}
+	checkDeprecatedWrapper(api, binding, wrapper, pkg, report)
 
 	for _, detail := range problems {
 		report.Violations = append(report.Violations, FFIViolation{
@@ -228,7 +260,30 @@ func checkGoCall(api *CAPI, binding FFIBinding, pkg *packages.Package, call *ast
 	}
 }
 
-func comparePointerTarget(api *CAPI, cType CType, goType types.Type, slot string, problems, unverified *[]string) {
+func compareEnumArgument(api *CAPI, cType CType, goType types.Type, enumTypes map[string]string, slot string, problems *[]string, report *GoCallReport) {
+	want := cEnumName(api, cType.Raw)
+	if want == "" || goType == nil {
+		return
+	}
+	report.EnumArgs++
+	named, ok := goType.(*types.Named)
+	if !ok {
+		*problems = append(*problems, fmt.Sprintf("%s: C takes enum %s but Go passes %s; a semantic enum type is required", slot, want, goType))
+		return
+	}
+	got := enumTypes[named.Obj().Name()]
+	if got == "" {
+		*problems = append(*problems, fmt.Sprintf("%s: C takes enum %s but Go type %s does not mirror a C enum", slot, want, goType))
+		return
+	}
+	if got != want {
+		*problems = append(*problems, fmt.Sprintf("%s: C takes enum %s but Go %s mirrors enum %s", slot, want, goType, got))
+		return
+	}
+	report.CleanEnumArgs++
+}
+
+func comparePointerTarget(api *CAPI, cType CType, goType types.Type, slot string, problems, unverified *[]string, signedness *[]FFIViolation, binding FFIBinding, pos token.Position) {
 	if cType.Kind != CPointer || goType == nil {
 		return
 	}
@@ -258,9 +313,14 @@ func comparePointerTarget(api *CAPI, cType CType, goType types.Type, slot string
 		*problems = append(*problems, fmt.Sprintf("%s pointer target: C %s is %s/%dB; Go points to %s/%dB",
 			slot, cType.Raw, cTarget.Kind, cTarget.Size, goKind, goSize))
 	}
+	if signednessMismatch(cTarget.Kind, goKind, cTarget.Size) {
+		*signedness = append(*signedness, FFIViolation{Symbol: binding.CName, File: pos.Filename, Line: pos.Line,
+			Detail: fmt.Sprintf("%s pointer target: C %s is %s but Go %s is %s; ABI-compatible, different numeric meaning",
+				slot, cType.Raw, cTarget.Kind, goPointer.Elem(), goKind)})
+	}
 }
 
-func checkGoReturn(binding FFIBinding, pkg *packages.Package, expr ast.Expr, problems, unverified *[]string) {
+func checkGoReturn(api *CAPI, binding FFIBinding, pkg *packages.Package, expr ast.Expr, problems, unverified *[]string, report *GoCallReport) {
 	value, note := goPointee(pkg, expr, goTargets[0].sizes)
 	switch binding.Return.Kind {
 	case CVoid:
@@ -274,6 +334,11 @@ func checkGoReturn(binding FFIBinding, pkg *packages.Package, expr ast.Expr, pro
 		if note != "" {
 			*unverified = append(*unverified, "return buffer "+note)
 			return
+		}
+		if fn, ok := api.Functions[binding.CName]; ok {
+			if detail := goValueSignedness(fn.ReturnType, value.Type, value.Kind, "return buffer"); detail != "" {
+				appendSignedness(report, binding, pkg.Fset.Position(expr.Pos()), []string{detail})
+			}
 		}
 		if value.Size < 8 {
 			*problems = append(*problems, fmt.Sprintf("return buffer %s is %dB; integer and pointer returns require an 8B ffi.Arg-sized buffer", value.Type, value.Size))
@@ -300,8 +365,39 @@ func checkGoReturn(binding FFIBinding, pkg *packages.Package, expr ast.Expr, pro
 			return
 		}
 		compareGoValue(binding.Return, value, "return buffer", problems, unverified)
-		compareGoLayouts(binding.Return, value.Type, "return buffer", problems, unverified)
+		if fn, ok := api.Functions[binding.CName]; ok {
+			compareGoLayouts(api, fn.ReturnType, binding.Return, value.Type, "return buffer", problems, unverified)
+			appendSignedness(report, binding, pkg.Fset.Position(expr.Pos()), goStructSignedness(api, fn.ReturnType, value.Type, "return buffer"))
+		}
 	}
+}
+
+func appendSignedness(report *GoCallReport, binding FFIBinding, pos token.Position, details []string) {
+	for _, detail := range details {
+		report.Signedness = append(report.Signedness, FFIViolation{Symbol: binding.CName, File: pos.Filename, Line: pos.Line, Detail: detail})
+	}
+}
+
+func checkDeprecatedWrapper(api *CAPI, binding FFIBinding, wrapper *ast.FuncDecl, pkg *packages.Package, report *GoCallReport) {
+	fn, ok := api.Functions[binding.CName]
+	if !ok || !fn.Deprecated || wrapper == nil || !wrapper.Name.IsExported() {
+		return
+	}
+	key := binding.CName + ":" + wrapper.Name.Name
+	if report.deprecatedSeen[key] {
+		return
+	}
+	report.deprecatedSeen[key] = true
+	report.Deprecated++
+	if hasDeprecatedDocumentation(wrapper.Doc) {
+		report.CleanDeprecated++
+		return
+	}
+	pos := pkg.Fset.Position(wrapper.Pos())
+	report.Deprecation = append(report.Deprecation, FFIViolation{
+		Symbol: binding.CName, File: pos.Filename, Line: pos.Line,
+		Detail: fmt.Sprintf("exported wrapper %s binds deprecated C API %s but has no Deprecated: documentation", wrapper.Name.Name, binding.CName),
+	})
 }
 
 func compareGoValue(ffi FFIType, value goValue, slot string, problems, unverified *[]string) {
@@ -390,89 +486,4 @@ func classifyGoType(typ types.Type, sizes types.Sizes) (CKind, int) {
 		return CStructValue, size
 	}
 	return CUnknown, size
-}
-
-type goLeaf struct {
-	offset int
-	size   int
-	kind   CKind
-}
-
-func compareGoLayouts(ffi FFIType, typ types.Type, slot string, problems, unverified *[]string) {
-	ffiLayout, ok := flattenFFIType(ffi, 0, 0)
-	if !ok {
-		*unverified = append(*unverified, slot+" FFI struct layout is unresolved")
-		return
-	}
-	for _, target := range goTargets {
-		goLayout, ok := flattenGoType(typ, target.sizes, 0, 0)
-		if !ok {
-			*unverified = append(*unverified, fmt.Sprintf("%s Go struct layout is unresolved on %s", slot, target.name))
-			continue
-		}
-		if detail := compareGoLeaves(ffiLayout, goLayout, ffi.Size); detail != "" {
-			*problems = append(*problems, fmt.Sprintf("%s %s layout: %s", slot, target.name, detail))
-		}
-	}
-}
-
-func flattenGoType(typ types.Type, sizes types.Sizes, base, depth int) ([]goLeaf, bool) {
-	if typ == nil || depth > 8 {
-		return nil, false
-	}
-	switch underlying := typ.Underlying().(type) {
-	case *types.Struct:
-		fields := make([]*types.Var, underlying.NumFields())
-		for i := range fields {
-			fields[i] = underlying.Field(i)
-		}
-		offsets := sizes.Offsetsof(fields)
-		var leaves []goLeaf
-		for i, field := range fields {
-			if field.Name() == "_" || strings.HasPrefix(field.Name(), "_pad") {
-				continue
-			}
-			more, ok := flattenGoType(field.Type(), sizes, base+int(offsets[i]), depth+1)
-			if !ok {
-				return nil, false
-			}
-			leaves = append(leaves, more...)
-		}
-		return leaves, true
-	case *types.Array:
-		var leaves []goLeaf
-		stride := int(sizes.Sizeof(underlying.Elem()))
-		for i := range int(underlying.Len()) {
-			more, ok := flattenGoType(underlying.Elem(), sizes, base+i*stride, depth+1)
-			if !ok {
-				return nil, false
-			}
-			leaves = append(leaves, more...)
-		}
-		return leaves, true
-	default:
-		kind, size := classifyGoType(typ, sizes)
-		if size <= 0 {
-			return nil, false
-		}
-		return []goLeaf{{base, size, kind}}, true
-	}
-}
-
-func compareGoLeaves(ffi []ffiLeaf, goSide []goLeaf, ffiSize int) string {
-	if len(goSide) < len(ffi) {
-		return fmt.Sprintf("Go has %d members; FFI has %d", len(goSide), len(ffi))
-	}
-	for i := range ffi {
-		if ffi[i].Offset != goSide[i].offset || ffi[i].Size != goSide[i].size || !ffiKindsCompatible(ffi[i].Kind, goSide[i].kind) {
-			return fmt.Sprintf("member %d: Go +%d %s/%dB; FFI +%d %s/%dB",
-				i, goSide[i].offset, goSide[i].kind, goSide[i].size, ffi[i].Offset, ffi[i].Kind, ffi[i].Size)
-		}
-	}
-	for _, leaf := range goSide[len(ffi):] {
-		if leaf.offset < ffiSize {
-			return fmt.Sprintf("Go member at +%d falls inside the %dB FFI struct", leaf.offset, ffiSize)
-		}
-	}
-	return ""
 }

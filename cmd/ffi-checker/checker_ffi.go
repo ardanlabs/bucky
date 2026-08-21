@@ -59,6 +59,7 @@ type FFIReport struct {
 	Covered    int
 	Missing    []CFunction
 	Violations []FFIViolation
+	Signedness []FFIViolation
 	Unverified []string
 }
 
@@ -576,9 +577,15 @@ func CheckFFI(api *CAPI, ffi *FFICatalog) FFIReport {
 			}
 
 			compareFFIType(api, binding.Return, fn.ReturnType, "return", &problems, &unverified)
+			for _, detail := range ffiSignedness(api, binding.Return, fn.ReturnType, "return") {
+				report.Signedness = append(report.Signedness, ffiViolation(binding, detail))
+			}
 			n := min(len(binding.Parameters), len(fn.Parameters))
 			for i := range n {
 				compareFFIType(api, binding.Parameters[i], fn.Parameters[i].Type, fmt.Sprintf("arg%d", i), &problems, &unverified)
+				for _, detail := range ffiSignedness(api, binding.Parameters[i], fn.Parameters[i].Type, fmt.Sprintf("arg%d", i)) {
+					report.Signedness = append(report.Signedness, ffiViolation(binding, detail))
+				}
 			}
 			for _, detail := range problems {
 				report.Violations = append(report.Violations, ffiViolation(binding, detail))
@@ -634,72 +641,6 @@ func compareFFIType(api *CAPI, ffi FFIType, c CType, slot string, problems, unve
 	if !ffiKindsCompatible(ffi.Kind, c.Kind) {
 		*problems = append(*problems, fmt.Sprintf("%s: C %s is %s but FFI %s is %s", slot, c.Raw, c.Kind, ffi.Name, ffi.Kind))
 	}
-}
-
-type ffiLeaf struct {
-	Offset int
-	Size   int
-	Kind   CKind
-}
-
-func flattenCStruct(api *CAPI, st CStruct, base, depth int) ([]ffiLeaf, bool) {
-	if st.Name == "" || st.LayoutError != "" || depth > 8 {
-		return nil, false
-	}
-	var leaves []ffiLeaf
-	for _, field := range st.Fields {
-		if field.Count <= 0 || field.Type.Size <= 0 {
-			return nil, false
-		}
-		for i := range field.Count {
-			offset := base + field.Offset + i*field.Type.Size
-			if field.Type.Kind == CStructValue {
-				nested := api.Structs[structTypeName(api, field.Type.Raw)]
-				more, ok := flattenCStruct(api, nested, offset, depth+1)
-				if !ok {
-					return nil, false
-				}
-				leaves = append(leaves, more...)
-			} else {
-				leaves = append(leaves, ffiLeaf{Offset: offset, Size: field.Type.Size, Kind: field.Type.Kind})
-			}
-		}
-	}
-	return leaves, true
-}
-
-func flattenFFIType(typ FFIType, base, depth int) ([]ffiLeaf, bool) {
-	if typ.Kind != CStructValue || len(typ.Fields) != len(typ.Offsets) || depth > 8 {
-		return nil, false
-	}
-	var leaves []ffiLeaf
-	for i, field := range typ.Fields {
-		offset := base + typ.Offsets[i]
-		if field.Kind == CStructValue {
-			more, ok := flattenFFIType(field, offset, depth+1)
-			if !ok {
-				return nil, false
-			}
-			leaves = append(leaves, more...)
-		} else if field.Kind == CUnknown || field.Size <= 0 {
-			return nil, false
-		} else {
-			leaves = append(leaves, ffiLeaf{Offset: offset, Size: field.Size, Kind: field.Kind})
-		}
-	}
-	return leaves, true
-}
-
-func compareLeaves(ffi, c []ffiLeaf) string {
-	if len(ffi) != len(c) {
-		return fmt.Sprintf("FFI has %d members; C has %d", len(ffi), len(c))
-	}
-	for i := range ffi {
-		if ffi[i].Offset != c[i].Offset || ffi[i].Size != c[i].Size || !ffiKindsCompatible(ffi[i].Kind, c[i].Kind) {
-			return fmt.Sprintf("member %d: FFI +%d %s/%dB; C +%d %s/%dB", i, ffi[i].Offset, ffi[i].Kind, ffi[i].Size, c[i].Offset, c[i].Kind, c[i].Size)
-		}
-	}
-	return ""
 }
 
 func ffiKindsCompatible(left, right CKind) bool {

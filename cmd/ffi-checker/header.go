@@ -463,9 +463,16 @@ func parseFields(ts []tokenC) []CField {
 	if len(ts) > 3 && ts[0].text == "struct" && ts[1].text == "{" {
 		close := matching(ts, 1, "{", "}")
 		if close > 1 {
+			prefix := ""
+			if close+1 < len(ts) && isIdentifier(ts[close+1].text) {
+				prefix = ts[close+1].text
+			}
 			var fields []CField
 			for _, stmt := range splitTokens(ts[2:close], ";") {
-				fields = append(fields, parseFields(stmt)...)
+				for _, field := range parseFields(stmt) {
+					field.Name = joinMemberPath(prefix, field.Name)
+					fields = append(fields, field)
+				}
 			}
 			return fields
 		}

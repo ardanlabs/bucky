@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"text/tabwriter"
 )
 
 func main() {
@@ -37,48 +38,57 @@ func main() {
 		os.Exit(2)
 	}
 	report := CheckFFI(api, ffi)
-	goReport, err := CheckGoCalls(api, ffi, "../../pkg/whisper")
+	enumReport, err := CheckGoEnums(api, "../../pkg/whisper")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse Go constants: %v\n", err)
+		os.Exit(2)
+	}
+	goReport, err := CheckGoCalls(api, ffi, enumReport.GoTypes, "../../pkg/whisper")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "parse Go call sites: %v\n", err)
 		os.Exit(2)
 	}
+	callbackReport, err := CheckCallbacks(api, "../../pkg/whisper")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse Go callbacks: %v\n", err)
+		os.Exit(2)
+	}
 
-	fmt.Printf("whisper.cpp C API: %s (%s)\n", *version, source)
-	fmt.Printf("  functions:  %d\n", len(api.Functions))
-	fmt.Printf("  declarations: %d exported, %d parse issues\n", api.ExportedDeclarations, len(api.Issues))
-	fmt.Printf("  aggregates: %d (%d layouts resolved)\n", len(api.Structs), api.ResolvedLayouts())
-	fmt.Printf("  enums:      %d\n", len(api.Enums))
-	fmt.Printf("  constants:  %d resolved, %d unresolved\n", api.ResolvedConstants(), api.UnresolvedConstants())
-	fmt.Printf("  callbacks:  %d\n", len(api.Callbacks))
-	fmt.Printf("  typedefs:   %d\n", len(api.Typedefs))
-	fmt.Printf("FFI bindings: %d (%d matched, %d clean, %d not verified, %d violations, %d parse issues)\n",
-		report.Bindings, report.Matched, report.Clean, len(report.Unverified), len(report.Violations), len(ffi.Issues))
-	fmt.Printf("whisper.h coverage: %d/%d functions bound (%d missing)\n",
-		report.Covered, report.Required, len(report.Missing))
-	for _, fn := range report.Missing {
-		fmt.Printf("  MISSING %s (%s:%d)\n", fn.Name, fn.File, fn.Line)
-	}
-	for _, issue := range ffi.Issues {
-		fmt.Printf("  NOT PARSED %s:%d: %s\n", issue.File, issue.Line, issue.Detail)
-	}
-	for _, item := range report.Unverified {
-		fmt.Printf("  NOT VERIFIED %s\n", item)
-	}
-	for _, violation := range report.Violations {
-		fmt.Printf("  MISMATCH %s (%s:%d): %s\n", violation.Symbol, violation.File, violation.Line, violation.Detail)
-	}
-	fmt.Printf("Go call mappings: %d (%d clean, %d not verified, %d violations)\n",
-		goReport.Calls, goReport.Clean, len(goReport.Unverified), len(goReport.Violations))
-	for _, item := range goReport.Unverified {
-		fmt.Printf("  NOT VERIFIED %s\n", item)
-	}
-	for _, violation := range goReport.Violations {
-		fmt.Printf("  MISMATCH %s (%s:%d): %s\n", violation.Symbol, violation.File, violation.Line, violation.Detail)
-	}
+	fmt.Printf("whisper.cpp %s (%s)\n\n", *version, source)
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "CHECK\tSTATUS\tSUMMARY")
+	fmt.Fprintln(w, "-----\t------\t-------")
+	tableRow(w, "Headers", checkStatus(0, len(api.Issues)), "%d declarations, %d parse issues", api.ExportedDeclarations, len(api.Issues))
+	tableRow(w, "API coverage", checkStatus(len(report.Missing), 0), "%d/%d functions bound (%d missing)", report.Covered, report.Required, len(report.Missing))
+	tableRow(w, "FFI bindings", checkStatus(len(report.Violations)+len(ffi.Issues), len(report.Unverified)), "%d/%d clean, %d violations, %d not verified", report.Clean, report.Bindings, len(report.Violations), len(report.Unverified))
+	tableRow(w, "Constants and enums", checkStatus(len(enumReport.Violations)+len(enumReport.Partial), len(enumReport.Unverified)), "%d/%d constants clean, %d/%d enums complete", enumReport.Clean, enumReport.Constants, enumReport.Complete, enumReport.Enums)
+	tableRow(w, "Go calls and structs", checkStatus(len(goReport.Violations), len(goReport.Unverified)), "%d/%d clean, %d violations, %d not verified", goReport.Clean, goReport.Calls, len(goReport.Violations), len(goReport.Unverified))
+	tableRow(w, "Semantic enums", checkStatus(goReport.EnumArgs-goReport.CleanEnumArgs, 0), "%d/%d arguments correct", goReport.CleanEnumArgs, goReport.EnumArgs)
+	unsafeStrings := goReport.StringArgs - goReport.CleanStrings - goReport.UnverifiedStrings
+	tableRow(w, "C strings", checkStatus(unsafeStrings, goReport.UnverifiedStrings), "%d/%d NUL-terminated", goReport.CleanStrings, goReport.StringArgs)
+	tableRow(w, "Callbacks", checkStatus(len(callbackReport.Violations), len(callbackReport.Unverified)), "%d/%d signatures clean, %d/%d struct fields traced", callbackReport.Clean, callbackReport.Callbacks, callbackReport.TracedFields, callbackReport.PointerFields)
+	signedness := len(report.Signedness) + len(goReport.Signedness)
+	tableRow(w, "Signedness", checkStatus(0, signedness), "%d findings", signedness)
+	tableRow(w, "Deprecated APIs", checkStatus(len(goReport.Deprecation), 0), "%d/%d wrappers documented", goReport.CleanDeprecated, goReport.Deprecated)
+	_ = w.Flush()
 	if len(ffi.Issues) > 0 {
 		os.Exit(2)
 	}
-	if len(report.Missing) > 0 || len(report.Violations) > 0 || len(goReport.Violations) > 0 {
+	if len(report.Missing) > 0 || len(report.Violations) > 0 || len(enumReport.Violations) > 0 || len(enumReport.Partial) > 0 || len(goReport.Violations) > 0 || len(goReport.Deprecation) > 0 || len(callbackReport.Violations) > 0 {
 		os.Exit(1)
 	}
+}
+
+func checkStatus(failures, warnings int) string {
+	if failures > 0 {
+		return "FAIL"
+	}
+	if warnings > 0 {
+		return "WARN"
+	}
+	return "PASS"
+}
+
+func tableRow(w *tabwriter.Writer, check, status, format string, args ...any) {
+	fmt.Fprintf(w, "%s\t%s\t%s\n", check, status, fmt.Sprintf(format, args...))
 }
