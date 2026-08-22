@@ -28,12 +28,10 @@ var (
 )
 
 // BuckyBuilderRepo is the GitHub repo serving prebuilt whisper.cpp
-// libraries for Linux, macOS, and Windows CPU. whisper.cpp upstream
-// publishes no Linux release artifacts at all, and we mirror their
-// macOS xcframework + Windows CPU x64 zip there too so every bucky
-// download lines up against the same tag with the same build provenance.
-// Only Windows CUDA still comes straight from upstream. See
-// https://github.com/ardanlabs/bucky-builder for the build matrix.
+// libraries for every platform and backend bucky supports. See
+// https://github.com/ardanlabs/bucky-builder for the build matrix. Windows
+// CUDA releases before v1.9.3 still come from whisper.cpp upstream because
+// bucky-builder did not publish that artifact yet.
 const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 
 // DefaultWhisperVersion is the well-known whisper.cpp release tag bucky's
@@ -61,7 +59,7 @@ var (
 // WhisperLatestVersion fetches the latest whisper.cpp release tag bucky knows
 // about. This is sourced from bucky-builder's GitHub Pages, NOT from
 // whisper.cpp upstream directly, so the value reflects what bucky-builder
-// has built + tested across Linux, macOS, and Windows CPU.
+// has built + tested across Linux, macOS, and Windows.
 func WhisperLatestVersion() (string, error) {
 	var version string
 	var err error
@@ -112,10 +110,6 @@ func getLatestVersion() (string, error) {
 // asset filename for the given parameters.
 func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version string) (location, filename string, err error) {
 	buckyBuilder := fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
-	upstream := fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
-	if version == "v1.9.3" {
-		upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/b4938"
-	}
 
 	switch os {
 	case Darwin:
@@ -142,10 +136,13 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 			location = buckyBuilder
 			filename = fmt.Sprintf("whisper-%s-bin-windows-cpu-x64.zip", version)
 		case CUDA:
-			// CUDA is still pulled straight from whisper.cpp upstream;
-			// bucky-builder does not build Windows CUDA yet.
-			location = upstream
-			filename = "whisper-cublas-12.4.0-bin-x64.zip"
+			if hasBuilderWindowsCUDA(version) {
+				location = buckyBuilder
+				filename = fmt.Sprintf("whisper-%s-bin-windows-cuda-x64.zip", version)
+			} else {
+				location = fmt.Sprintf("https://github.com/ggml-org/whisper.cpp/releases/download/%s", version)
+				filename = "whisper-cublas-12.4.0-bin-x64.zip"
+			}
 		default:
 			return "", "", fmt.Errorf("%w: windows supports cpu/cuda", ErrUnknownProcessor)
 		}
@@ -178,6 +175,15 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 	}
 
 	return location, filename, nil
+}
+
+func hasBuilderWindowsCUDA(version string) bool {
+	var major, minor, patch int
+	if _, err := fmt.Sscanf(version, "v%d.%d.%d", &major, &minor, &patch); err != nil {
+		return false
+	}
+
+	return major > 1 || major == 1 && (minor > 9 || minor == 9 && patch >= 3)
 }
 
 // getFunc is the function used to download asset files. It can be overridden for testing.

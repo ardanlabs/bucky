@@ -67,7 +67,7 @@ $ go install github.com/ardanlabs/bucky@latest
 $ bucky --help
 ```
 
-Then fetch the whisper.cpp shared library bundle (xcframework on darwin, DLLs on windows, `.tar.gz` from [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) on linux):
+Then fetch the whisper.cpp shared library bundle from [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder):
 
 ```shell
 $ bucky install -lib ./lib
@@ -129,13 +129,13 @@ See [MODELS.md](./MODELS.md) for the recommended set with size / speed / quality
 
 ## Support
 
-Bucky uses the prebuilt whisper.cpp release artifacts where they exist; Linux artifacts come from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo (whisper.cpp upstream publishes no Linux release).
+Bucky uses purpose-built shared-library bundles from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo.
 
 | OS      | CPU          | GPU               | Source                                                                           |
 | ------- | ------------ | ----------------- | -------------------------------------------------------------------------------- |
-| Linux   | amd64, arm64 | CUDA 12.9, Vulkan | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` (bucky-builder) |
-| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-xcframework.zip` (upstream)                                      |
-| Windows | amd64        | CPU, CUDA 12      | `whisper-bin-x64.zip` / `-cublas-…` (upstream)                                   |
+| Linux   | amd64, arm64 | CUDA 12.9, Vulkan | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` |
+| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`                 |
+| Windows | amd64        | CPU, CUDA 12.4    | `whisper-vX.Y.Z-bin-windows-{cpu,cuda}-x64.zip`                 |
 
 Whenever there is a new release of whisper.cpp, the FFI struct mirrors and `pkg/download` matrix may need a refresh. The pinned version is captured in `pkg/download/`.
 
