@@ -101,13 +101,22 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			wantFile:     "whisper-v1.9.2-bin-windows-cpu-x64.zip",
 		},
 		{
-			name:         "windows amd64 cuda still uses upstream",
+			name:         "windows amd64 cuda before builder support uses upstream",
 			arch:         AMD64,
 			os:           Windows,
 			proc:         CUDA,
 			version:      "v1.9.2",
 			wantLocation: upstream,
 			wantFile:     "whisper-cublas-12.4.0-bin-x64.zip",
+		},
+		{
+			name:         "windows amd64 cuda uses bucky-builder",
+			arch:         AMD64,
+			os:           Windows,
+			proc:         CUDA,
+			version:      "v1.9.3",
+			wantLocation: "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.3",
+			wantFile:     "whisper-v1.9.3-bin-windows-cuda-x64.zip",
 		},
 		{
 			name:         "linux amd64 cpu",

@@ -21,10 +21,10 @@ make build
 ./bucky install -lib ./lib
 ```
 
-This downloads the official `whisper-vX.Y.Z-xcframework.zip` from the
-[whisper.cpp GitHub releases](https://github.com/ggml-org/whisper.cpp/releases)
-and extracts the `macos-arm64_x86_64` slice of the universal Mach-O dylib
-into `./lib/libwhisper.dylib`. Metal acceleration is included.
+This downloads the macOS-only universal xcframework from
+[`ardanlabs/bucky-builder`](https://github.com/ardanlabs/bucky-builder) and
+extracts its `macos-arm64_x86_64` Mach-O dylib into
+`./lib/libwhisper.dylib`. Metal acceleration is included.
 
 ## Windows (amd64)
 
@@ -33,12 +33,12 @@ make build
 .\bucky.exe install -lib .\lib
 ```
 
-This downloads `whisper-bin-x64.zip` and extracts the `Release/*.dll`
-files (`whisper.dll`, `ggml.dll`, `ggml-base.dll`, `ggml-cpu.dll`).
+This downloads `whisper-vX.Y.Z-bin-windows-cpu-x64.zip` and extracts its
+DLLs (`whisper.dll`, `ggml.dll`, `ggml-base.dll`, and the CPU variants).
 
 For CUDA builds use `-p cuda`; that downloads
-`whisper-cublas-12.4.0-bin-x64.zip` instead. You must already have the
-matching CUDA 12.4 runtime installed on the host.
+`whisper-vX.Y.Z-bin-windows-cuda-x64.zip` instead. The CUDA runtime DLLs
+are included, so only a compatible NVIDIA driver is required on the host.
 
 > **Windows ABI verification.** `pkg/whisper.WhisperFullParams` is sized
 > assuming LLP64 with 4-byte `int` and 8-byte `size_t`/pointer — exactly
@@ -62,9 +62,8 @@ make build
 
 Linux libraries are produced by the
 [`ardanlabs/bucky-builder`](https://github.com/ardanlabs/bucky-builder)
-companion repo (whisper.cpp upstream publishes no Linux release artifact
-at all). The builder re-runs hourly against new whisper.cpp tags and
-publishes six artifacts per release:
+companion repo. The builder checks twice daily for new whisper.cpp tags and
+publishes six purpose-built Linux artifacts per release:
 
 | Backend   | amd64                                         | arm64                                           |
 | --------- | --------------------------------------------- | ----------------------------------------------- |
