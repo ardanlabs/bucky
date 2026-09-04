@@ -91,11 +91,7 @@ func runInstall(c *cli.Context) error {
 
 	quiet := c.Bool("quiet")
 	if !quiet {
-		tag, _, err := download.ParsePinnedVersion(version)
-		if err != nil {
-			return err
-		}
-		fmt.Println("installing whisper.cpp version", tag, "to", libPath)
+		fmt.Println("installing whisper.cpp version", version, "to", libPath)
 	} else {
 		download.ProgressTracker = nil
 	}
