@@ -34,19 +34,19 @@ var (
 // bucky-builder did not publish that artifact yet.
 const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 
-// DefaultWhisperVersion is the well-known whisper.cpp release tag bucky's
-// FFI struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested
-// against. `bucky install` uses this when no -v flag is supplied so first
-// installs and CI runs do not depend on the GitHub releases API. Bumping
-// this value is a deliberate, reviewable change that should be paired with
-// re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
-const DefaultWhisperVersion = "v1.9.3"
+// DefaultWhisperVersion is the authenticated whisper.cpp release bucky's FFI
+// struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested against.
+// Bumping this value is a deliberate, reviewable change that should be paired
+// with re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
+const DefaultWhisperVersion = "v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012"
 
 var (
 	// RetryCount is how many times the package will retry to obtain the latest whisper.cpp version.
 	RetryCount = 3
+
 	// RetryDelay is the delay between retries when obtaining the latest whisper.cpp version.
 	RetryDelay = 3 * time.Second
+
 	// versionURL is the URL serving the latest whisper.cpp tag bucky-builder
 	// has produced Linux artifacts for. We deliberately do NOT hit the
 	// GitHub releases API here — that endpoint is rate-limited per IP,
@@ -54,6 +54,8 @@ var (
 	// republished by bucky-builder's publish-version workflow whenever a
 	// new whisper.cpp release ships.
 	versionURL = "https://ardanlabs.github.io/bucky-builder/version.json"
+
+	buckyBuilderReleaseURL = "https://github.com/ardanlabs/bucky-builder/releases/download/%s"
 )
 
 // WhisperLatestVersion fetches the latest whisper.cpp release tag bucky knows
@@ -109,7 +111,7 @@ func getLatestVersion() (string, error) {
 // getDownloadLocationAndFilename returns the download URL location and the
 // asset filename for the given parameters.
 func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version string) (location, filename string, err error) {
-	buckyBuilder := fmt.Sprintf("https://github.com/%s/releases/download/%s", BuckyBuilderRepo, version)
+	buckyBuilder := fmt.Sprintf(buckyBuilderReleaseURL, version)
 
 	switch os {
 	case Darwin:
@@ -209,6 +211,12 @@ func GetWithProgress(architecture string, operatingSystem string, processor stri
 // GetWithContext downloads the whisper.cpp precompiled binaries using the
 // provided context and progress tracker.
 func GetWithContext(ctx context.Context, architecture string, operatingSystem string, processor string, version string, dest string, progress getter.ProgressTracker) error {
+	tag, manifestSHA, err := ParsePinnedVersion(version)
+	if err != nil {
+		return err
+	}
+	version = tag
+
 	arch, err := ParseArch(architecture)
 	if err != nil {
 		return ErrUnknownArch
@@ -234,23 +242,52 @@ func GetWithContext(ctx context.Context, architecture string, operatingSystem st
 	}
 
 	url := fmt.Sprintf("%s/%s", location, filename)
-	return getFunc(ctx, url, dest, osVal, progress)
+
+	m, _, err := fetchManifest(ctx, version, manifestSHA)
+	if err != nil {
+		return err
+	}
+	entry, ok := m.assetFor(url)
+	if !ok {
+		return fmt.Errorf("%w: %s is not in the digests of %s", ErrDigestMissing, url, version)
+	}
+	if entry.SHA256 == "" {
+		return fmt.Errorf("%w: %s has no archive digest in the digests of %s", ErrDigestMissing, url, version)
+	}
+
+	if err := getFunc(ctx, url, dest, osVal, entry.SHA256, progress); err != nil {
+		return err
+	}
+
+	record := InstallRecord{
+		Tag:            version,
+		Arch:           arch.String(),
+		OS:             osVal.String(),
+		Processor:      prcssr.String(),
+		Installed:      time.Now().UTC(),
+		ManifestSHA256: manifestSHA,
+		Asset: InstallAsset{
+			URL: url, SHA256: entry.SHA256, Files: entry.Files, Links: entry.Links,
+		},
+	}
+	return WriteInstallRecord(dest, record)
 }
 
 // get downloads the asset zip and extracts the relevant whisper library file(s)
 // into dest. The extraction logic differs per OS because whisper.cpp ships
 // platform-specific archive layouts.
-func get(ctx context.Context, url, dest string, osVal OS, progress getter.ProgressTracker) error {
-	if err := os.MkdirAll(dest, 0o755); err != nil {
-		return fmt.Errorf("failed to create destination dir: %w", err)
+func get(ctx context.Context, url, dest string, osVal OS, wantSHA string, progress getter.ProgressTracker) error {
+	tempDir, err := os.MkdirTemp("", "bucky-download-*")
+	if err != nil {
+		return fmt.Errorf("creating download directory: %w", err)
 	}
-
-	downloadFile := filepath.Join(dest, filepath.Base(url))
+	defer os.RemoveAll(tempDir)
+	downloadFile := filepath.Join(tempDir, filepath.Base(url))
 
 	client := &getter.Client{
 		Ctx:  ctx,
 		Src:  url + "?archive=false",
-		Dst:  dest,
+		Dst:  tempDir,
 		Mode: getter.ClientModeAny,
 	}
 
@@ -264,7 +301,14 @@ func get(ctx context.Context, url, dest string, osVal OS, progress getter.Progre
 		}
 		return err
 	}
-	defer os.Remove(downloadFile)
+	if wantSHA != "" {
+		if err := verifyFile(downloadFile, wantSHA); err != nil {
+			return err
+		}
+	}
+	if err := os.MkdirAll(dest, 0o755); err != nil {
+		return fmt.Errorf("failed to create destination dir: %w", err)
+	}
 
 	switch osVal {
 	case Darwin:

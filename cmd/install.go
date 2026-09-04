@@ -20,7 +20,7 @@ var InstallCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "version",
 			Aliases: []string{"v"},
-			Usage:   fmt.Sprintf("version of whisper.cpp to install (e.g. %s; default is the bucky-pinned version, pass \"latest\" to query the GitHub releases API)", download.DefaultWhisperVersion),
+			Usage:   fmt.Sprintf("version to install (VERSION or VERSION@sha256:<64-hex>; default %s, \"latest\" selects the newest)", download.DefaultWhisperVersion),
 			Value:   "",
 		},
 		&cli.StringFlag{
@@ -91,7 +91,11 @@ func runInstall(c *cli.Context) error {
 
 	quiet := c.Bool("quiet")
 	if !quiet {
-		fmt.Println("installing whisper.cpp version", version, "to", libPath)
+		tag, _, err := download.ParsePinnedVersion(version)
+		if err != nil {
+			return err
+		}
+		fmt.Println("installing whisper.cpp version", tag, "to", libPath)
 	} else {
 		download.ProgressTracker = nil
 	}

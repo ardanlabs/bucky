@@ -6,8 +6,20 @@ import (
 )
 
 func TestDefaultWhisperVersion(t *testing.T) {
-	if err := VersionIsValid(DefaultWhisperVersion); err != nil {
-		t.Errorf("DefaultWhisperVersion %q is invalid: %v", DefaultWhisperVersion, err)
+	const (
+		wantTag    = "v1.9.3"
+		wantDigest = "faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012"
+	)
+
+	tag, digest, err := ParsePinnedVersion(DefaultWhisperVersion)
+	if err != nil {
+		t.Fatalf("ParsePinnedVersion(DefaultWhisperVersion): %v", err)
+	}
+	if tag != wantTag {
+		t.Errorf("default tag = %q, want %q", tag, wantTag)
+	}
+	if digest != wantDigest {
+		t.Errorf("default digest = %q, want %q", digest, wantDigest)
 	}
 }
 
