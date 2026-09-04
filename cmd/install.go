@@ -20,7 +20,7 @@ var InstallCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "version",
 			Aliases: []string{"v"},
-			Usage:   fmt.Sprintf("version of whisper.cpp to install (e.g. %s; default is the bucky-pinned version, pass \"latest\" to query the GitHub releases API)", download.DefaultWhisperVersion),
+			Usage:   fmt.Sprintf("version to install (VERSION or VERSION@sha256:<64-hex>; default %s, \"latest\" selects the newest)", download.DefaultWhisperVersion),
 			Value:   "",
 		},
 		&cli.StringFlag{

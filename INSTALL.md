@@ -19,7 +19,15 @@ shared library. The expected filenames are:
 ```
 make build
 ./bucky install -lib ./lib
+
+# Authenticate the publisher manifest before installing.
+./bucky install -lib ./lib -version 'v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012'
 ```
+
+Every install verifies the selected archive against its release manifest before
+extraction. When no version is supplied, Bucky also authenticates that manifest
+with its built-in SHA-256 pin. `bucky-builder` publishes pins for other versions
+with each release.
 
 This downloads the macOS-only universal xcframework from
 [`ardanlabs/bucky-builder`](https://github.com/ardanlabs/bucky-builder) and

@@ -17,6 +17,7 @@ To install bucky, fetch the whisper.cpp shared libraries, and transcribe the bun
 $ go install github.com/ardanlabs/bucky@latest
 
 $ bucky install -lib ./lib
+$ bucky install -lib ./lib -version 'v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012'
 $ export BUCKY_LIB=$(pwd)/lib
 
 $ bucky model get tiny
@@ -24,6 +25,12 @@ $ bucky whisper transcribe -m ~/models/ggml-tiny.bin samples/jfk.wav
 ```
 
 Read [INSTALL.md](./INSTALL.md) for per-OS install notes and [MODELS.md](./MODELS.md) for the recommended whisper model set.
+
+Every install verifies the selected archive against its entry in the release
+manifest before extraction. The default version also pins the SHA-256 of that
+manifest, authenticating the archive digest itself. For another version, copy
+the complete `VERSION@sha256:DIGEST` pin from that
+[`bucky-builder`](https://github.com/ardanlabs/bucky-builder/releases) release.
 
 ## Project Status
 
