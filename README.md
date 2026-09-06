@@ -35,7 +35,6 @@ the complete `VERSION@sha256:DIGEST` pin from that
 ## Project Status
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/ardanlabs/bucky.svg)](https://pkg.go.dev/github.com/ardanlabs/bucky)
-[![Go Report Card](https://goreportcard.com/badge/github.com/ardanlabs/bucky?style=flat-square)](https://goreportcard.com/report/github.com/ardanlabs/bucky)
 [![go.mod Go version](https://img.shields.io/github/go-mod/go-version/ardanlabs/bucky)](https://github.com/ardanlabs/bucky)
 [![whisper.cpp Release](https://img.shields.io/github/v/release/ggml-org/whisper.cpp?label=whisper.cpp)](https://github.com/ggml-org/whisper.cpp/releases)
 
@@ -138,11 +137,11 @@ See [MODELS.md](./MODELS.md) for the recommended set with size / speed / quality
 
 Bucky uses purpose-built shared-library bundles from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo.
 
-| OS      | CPU          | GPU               | Source                                                                           |
-| ------- | ------------ | ----------------- | -------------------------------------------------------------------------------- |
+| OS      | CPU          | GPU               | Source                                                           |
+| ------- | ------------ | ----------------- | ---------------------------------------------------------------- |
 | Linux   | amd64, arm64 | CUDA 12.9, Vulkan | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,vulkan}-{x64,arm64}.tar.gz` |
-| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`                 |
-| Windows | amd64        | CPU, CUDA 12.4    | `whisper-vX.Y.Z-bin-windows-{cpu,cuda}-x64.zip`                 |
+| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`                  |
+| Windows | amd64        | CPU, CUDA 12.4    | `whisper-vX.Y.Z-bin-windows-{cpu,cuda}-x64.zip`                  |
 
 Whenever there is a new release of whisper.cpp, the FFI struct mirrors and `pkg/download` matrix may need a refresh. The pinned version is captured in `pkg/download/`.
 
