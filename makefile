@@ -2,14 +2,13 @@
 MAKEFILE_PATH := $(realpath $(lastword $(MAKEFILE_LIST)))
 MAKEFILE_DIR  := $(dir $(MAKEFILE_PATH))
 BUCKY_LIB    ?= $(MAKEFILE_DIR)lib
-MODELS_DIR   ?= $(HOME)/models
+MODELS_DIR   ?= $(HOME)/.kronk/bucky-models
 
 # make download-models fetches the GGML Whisper models used in tests/examples.
 # Override MODELS_DIR=/path/to/models to put them somewhere else.
 download-models:
-	mkdir -p $(MODELS_DIR)
-	curl -L -o $(MODELS_DIR)/ggml-tiny.bin   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin
-	curl -L -o $(MODELS_DIR)/ggml-base.en.bin https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+	go run . model get -y tiny
+	go run . model get -y base.en
 
 clean-whisper.cpp:
 	rm -rf $(BUCKY_LIB)/*
