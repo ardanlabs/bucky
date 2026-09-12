@@ -42,12 +42,13 @@ the complete `VERSION@sha256:DIGEST` pin from that
 [![macOS](https://github.com/ardanlabs/bucky/actions/workflows/macos.yml/badge.svg)](https://github.com/ardanlabs/bucky/actions/workflows/macos.yml)
 [![Windows](https://github.com/ardanlabs/bucky/actions/workflows/windows.yml/badge.svg)](https://github.com/ardanlabs/bucky/actions/workflows/windows.yml)
 
-Sometimes there are breaking changes to whisper.cpp that require an update to bucky. Here are the known compatible versions:
+Sometimes there are breaking changes to whisper.cpp that require an update to bucky. These are the whisper.cpp versions pinned by the three most recent Bucky releases:
 
-| whisper.cpp | bucky |
-| ----------- | ----- |
-| v1.9.3      | 1.0.9 |
-| v1.8.6+     | 0.1.x |
+| bucky  | whisper.cpp |
+| ------ | ----------- |
+| v1.1.3 | v1.9.4      |
+| v1.1.2 | v1.9.3      |
+| v1.1.1 | v1.9.3      |
 
 The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`, `streaming-realtime`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 

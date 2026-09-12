@@ -91,18 +91,14 @@ do not change historical claims unless the benchmarks are actually rerun.
 
 ## README compatibility table
 
-Determine whether changes in <WHISPER_VERSION> make it incompatible with the
-previous Bucky release. If a breaking change requires users to upgrade Bucky,
-update the known-compatible-versions table in `README.md`:
+Update the known-compatible-versions table in `README.md` for every Bucky
+release, including non-breaking whisper.cpp upgrades:
 
-- replace the previous row's open-ended `+` range with the last whisper.cpp
-  version compatible with that Bucky release
-- add a row beginning with <WHISPER_VERSION> and identify <BUCKY_VERSION> as
-  the minimum compatible Bucky release
-- use explicit version ranges when later releases change either boundary
+- add the <WHISPER_VERSION> and <BUCKY_VERSION> pair as the first row
+- retain only the three most recent Bucky releases
+- list an exact whisper.cpp version and an exact Bucky version in every row
 
-Do not change the table for a non-breaking whisper.cpp upgrade. In the final
-report, state whether the compatibility table changed and why.
+In the final report, state that the compatibility table was updated.
 
 ## Local runtime validation
 
