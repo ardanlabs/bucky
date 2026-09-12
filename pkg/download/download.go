@@ -38,7 +38,7 @@ const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 // struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested against.
 // Bumping this value is a deliberate, reviewable change that should be paired
 // with re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
-const DefaultWhisperVersion = "v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012"
+const DefaultWhisperVersion = "v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e"
 
 var (
 	// RetryCount is how many times the package will retry to obtain the latest whisper.cpp version.
@@ -196,7 +196,7 @@ var getFunc = get
 //	arch:      "amd64" or "arm64"
 //	os:        "linux", "darwin", or "windows"
 //	processor: "cpu", "cuda", "metal", or "vulkan"
-//	version:   the desired whisper.cpp release tag, e.g. "v1.9.2"
+//	version:   the desired whisper.cpp release tag, e.g. "v1.9.4"
 //	dest:      destination directory for the extracted libraries
 func Get(architecture string, operatingSystem string, processor string, version string, dest string) error {
 	return GetWithProgress(architecture, operatingSystem, processor, version, dest, ProgressTracker)

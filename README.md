@@ -17,7 +17,7 @@ To install bucky, fetch the whisper.cpp shared libraries, and transcribe the bun
 $ go install github.com/ardanlabs/bucky@latest
 
 $ bucky install -lib ./lib
-$ bucky install -lib ./lib -version 'v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012'
+$ bucky install -lib ./lib -version 'v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e'
 $ export BUCKY_LIB=$(pwd)/lib
 
 $ bucky model get tiny
@@ -115,7 +115,7 @@ The architecture of bucky mirrors yzma file-for-file so anyone who knows yzma ca
                           │
                           ▼
               libwhisper.{dylib|so|dll}
-                  (whisper.cpp v1.9.3)
+                  (whisper.cpp v1.9.4)
 ```
 
 ## Models

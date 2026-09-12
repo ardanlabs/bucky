@@ -13,7 +13,7 @@ download-models:
 clean-whisper.cpp:
 	rm -rf $(BUCKY_LIB)/*
 
-# make download-whisper.cpp VERSION=vx.x.x to download a specific version.
+# make download-whisper.cpp VERSION=v1.9.4 to download a specific version.
 download-whisper.cpp:
 	go run . install -lib $(BUCKY_LIB) $(if $(VERSION),-v $(VERSION))
 
@@ -62,7 +62,7 @@ bench:
 	export BUCKY_LIB=$(BUCKY_LIB) && \
 	export BUCKY_BENCH_MODEL=$(BUCKY_BENCH_MODEL) && \
 	export BUCKY_TEST_AUDIO=$(MAKEFILE_DIR)samples/jfk.wav && \
-	go test -bench=BenchmarkFullJFK -benchtime=$(BENCHTIME) -run='^$$' ./pkg/whisper/
+	go test -count=1 -bench=BenchmarkFullJFK -benchtime=$(BENCHTIME) -run='^$$' ./pkg/whisper/
 
 # make profile-whisper captures CPU + memory profiles for BenchmarkFullJFK
 # and writes them to ./profiles/. Useful for tracing time/allocs spent in

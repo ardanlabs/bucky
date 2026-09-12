@@ -2,14 +2,14 @@
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
 (darwin/arm64) with the Metal backend from bucky-builder's
-`whisper-v1.9.2-bin-darwin-metal-universal.zip`. The Go benchmark and
+`whisper-v1.9.4-bin-darwin-metal-universal.zip`. The Go benchmark and
 the upstream ggml/memcpy helpers all run against the same
 `lib/libwhisper.dylib` installed by Bucky.
 
 Reproduce with:
 
 ```
-make download-whisper.cpp VERSION=v1.9.2 # populates ./lib
+make download-whisper.cpp VERSION=v1.9.4 # populates ./lib
 make download-models                # populates ~/models
 make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 ```
@@ -31,7 +31,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 
 | Model     | Backend | b.N |      ns/op | audio_s |      RTF |
 | --------- | ------- | --: | ---------: | ------: | -------: |
-| ggml-tiny | Metal   |  10 | 28,971,246 |   11.00 | 0.002634 |
+| ggml-tiny | Metal   |  10 | 27,233,642 |   11.00 | 0.002476 |
 
 Run command:
 
@@ -39,11 +39,11 @@ Run command:
 BUCKY_LIB=$PWD/lib \
 BUCKY_BENCH_MODEL=$HOME/models/ggml-tiny.bin \
 BUCKY_TEST_AUDIO=$PWD/samples/jfk.wav \
-go test -bench=BenchmarkFullJFK -benchtime=10x -run='^$' ./pkg/whisper/
+go test -count=1 -bench=BenchmarkFullJFK -benchtime=10x -run='^$' ./pkg/whisper/
 ```
 
 The first un-timed warm-up dominates total wall time (~5–6 s) because of
-Metal library compilation; warm runs are ~29 ms for 11 s of audio. To
+Metal library compilation; warm runs are ~27 ms for 11 s of audio. To
 record numbers across `tiny`, `base`, `small`, etc., re-run with a
 different `BUCKY_BENCH_MODEL`.
 
@@ -56,23 +56,23 @@ useful for comparing backends or hosts without loading a model.
 ### `whisper_bench_memcpy_str(4)` — Apple M5 Max
 
 ```
-memcpy:   59.92 GB/s (heat-up)
-memcpy:   70.04 GB/s ( 1 thread)
-memcpy:   70.25 GB/s ( 1 thread)
-memcpy:  120.94 GB/s ( 2 thread)
-memcpy:  159.82 GB/s ( 3 thread)
-memcpy:  171.06 GB/s ( 4 thread)
+memcpy:   59.84 GB/s (heat-up)
+memcpy:   66.84 GB/s ( 1 thread)
+memcpy:   70.33 GB/s ( 1 thread)
+memcpy:  123.55 GB/s ( 2 thread)
+memcpy:  159.16 GB/s ( 3 thread)
+memcpy:  173.77 GB/s ( 4 thread)
 ```
 
 ### `whisper_bench_ggml_mul_mat_str(4)` — selected sizes
 
 | Size      |         Q4_0 |         Q8_0 |          F16 |          F32 |
 | --------- | -----------: | -----------: | -----------: | -----------: |
-| 256x256   | 117.5 GFLOPS | 243.2 GFLOPS | 214.9 GFLOPS | 142.2 GFLOPS |
-| 512x512   | 140.8 GFLOPS | 368.4 GFLOPS | 312.1 GFLOPS | 172.6 GFLOPS |
-| 1024x1024 | 138.5 GFLOPS | 361.7 GFLOPS | 355.6 GFLOPS | 175.8 GFLOPS |
-| 2048x2048 | 140.8 GFLOPS | 401.6 GFLOPS | 353.3 GFLOPS | 163.0 GFLOPS |
-| 4096x4096 | 142.1 GFLOPS | 372.1 GFLOPS | 317.2 GFLOPS | 149.8 GFLOPS |
+| 256x256   | 117.9 GFLOPS | 234.1 GFLOPS | 208.1 GFLOPS | 138.8 GFLOPS |
+| 512x512   | 142.5 GFLOPS | 368.0 GFLOPS | 312.4 GFLOPS | 175.8 GFLOPS |
+| 1024x1024 | 147.9 GFLOPS | 433.5 GFLOPS | 359.4 GFLOPS | 182.4 GFLOPS |
+| 2048x2048 | 149.3 GFLOPS | 425.2 GFLOPS | 357.5 GFLOPS | 166.7 GFLOPS |
+| 4096x4096 | 149.3 GFLOPS | 387.8 GFLOPS | 328.8 GFLOPS | 156.0 GFLOPS |
 
 Full output is produced by the `BenchMemcpyStr` / `BenchGGMLMulMatStr`
 wrappers. The recorded values were generated with this temporary driver:
@@ -115,13 +115,13 @@ the benchmarks.
 
 | Benchmark                |   ns/op |      B/op | allocs/op |           vs allocating |
 | ------------------------ | ------: | --------: | --------: | ----------------------: |
-| `BenchmarkDecodeWAV`     | 152,754 | 1,056,909 |         9 |                baseline |
-| `BenchmarkDecodeWAVInto` | 128,165 |   352,393 |         8 | **-16% time, -67% mem** |
-| `BenchmarkDecode`        | 151,468 | 1,057,028 |        13 |                baseline |
-| `BenchmarkDecodeInto`    | 128,190 |   352,513 |        12 | **-15% time, -67% mem** |
+| `BenchmarkDecodeWAV`     | 141,794 | 1,056,908 |         9 |                baseline |
+| `BenchmarkDecodeWAVInto` | 118,350 |   352,393 |         8 | **-17% time, -67% mem** |
+| `BenchmarkDecode`        | 143,580 | 1,057,029 |        13 |                baseline |
+| `BenchmarkDecodeInto`    | 117,342 |   352,512 |        12 | **-18% time, -67% mem** |
 
 The `Into` variants eliminate the per-call `[]float32` output allocation
-(~705 KB for an 11 s clip), reducing runtime by 15–16% in this run. The
+(~705 KB for an 11 s clip), reducing runtime by 17–18% in this run. The
 remaining 352 KB is the internal `[]byte` WAV chunk read by `readWAVData`
 and could be pooled in a future change if needed.
 
@@ -129,7 +129,7 @@ Run command:
 
 ```
 BUCKY_TEST_AUDIO=$PWD/samples/jfk.wav \
-    go test -bench=. -benchtime=2s -run='^$' -benchmem ./pkg/audio/
+    go test -count=1 -bench=. -benchtime=2s -run='^$' -benchmem ./pkg/audio/
 ```
 
 ## Profiling
