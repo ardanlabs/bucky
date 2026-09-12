@@ -4,17 +4,17 @@ import (
 	"testing"
 )
 
-// TestVersion verifies the whisper.cpp version string crosses the FFI
-// boundary as a non-empty Go string. An empty result would indicate the
-// return-value marshalling of the void→const-char* trampoline broke.
+// TestVersion verifies the expected whisper.cpp version string crosses the
+// FFI boundary. The builder compiles tagged source with upstream's default
+// WHISPER_BUILD_IS_DEV setting, which appends the -dev suffix.
 func TestVersion(t *testing.T) {
 	testSetup(t)
 
-	v := Version()
-	if v == "" {
-		t.Fatal("Version returned empty string")
+	const want = "1.9.4-dev"
+
+	if got := Version(); got != want {
+		t.Errorf("Version() = %q, want %q", got, want)
 	}
-	t.Logf("whisper.Version = %q", v)
 }
 
 // TestPrintSystemInfo verifies the system-info string is returned intact.

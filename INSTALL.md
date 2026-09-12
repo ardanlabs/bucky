@@ -21,7 +21,7 @@ make build
 ./bucky install -lib ./lib
 
 # Authenticate the publisher manifest before installing.
-./bucky install -lib ./lib -version 'v1.9.3@sha256:faefb03cc7142acfc2513257302bcdb559ea2ec5f4b2f69ff607f483396b1012'
+./bucky install -lib ./lib -version 'v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e'
 ```
 
 Every install verifies the selected archive against its release manifest before
@@ -94,7 +94,7 @@ If you'd rather build whisper.cpp yourself:
 ```
 git clone https://github.com/ggml-org/whisper.cpp.git
 cd whisper.cpp
-git checkout v1.9.3
+git checkout v1.9.4
 cmake -B build -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release -j$(nproc)
 mkdir -p ../bucky/lib

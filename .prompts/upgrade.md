@@ -1,5 +1,5 @@
-WHISPER_VERSION = v1.9.2
-BUCKY_VERSION = v1.0.8
+WHISPER_VERSION = v1.9.4
+BUCKY_VERSION = v1.1.3
 
 Upgrade this Bucky repository to whisper.cpp <WHISPER_VERSION> and prepare
 Bucky release <BUCKY_VERSION>.
@@ -51,12 +51,16 @@ Identify:
 - changed enum values
 - changed function parameters or return types
 - removed or renamed symbols
-- newly added APIs that are optional rather than required for compatibility
+- newly added public types, constants, callbacks, and functions
 - expected 64-bit struct sizes and alignment
 
-Make the smallest required FFI changes. Do not add bindings for optional new
-features unless needed for compatibility or clearly valuable to Bucky's
-existing API.
+Make the required FFI changes and implement bindings for every newly added
+public API in `include/whisper.h`, following the existing `pkg/whisper`
+patterns. Expose the new APIs through idiomatic Go names and add focused tests
+that exercise their FFI signatures and behavior. If a safe binding is unclear,
+the symbol is unavailable in a required release artifact, or exposing it would
+require a breaking Bucky API decision, ask for direction before omitting or
+postponing it.
 
 Update the upgrade tests when layouts change. Ensure the tests verify
 by-value and by-reference parameter handling where applicable.
