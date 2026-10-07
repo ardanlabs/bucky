@@ -122,61 +122,74 @@ func TestVerifyInstallDetectsChangedPathTypes(t *testing.T) {
 }
 
 func TestGetWithContextPinned(t *testing.T) {
-	const (
-		tag      = "v1.9.3"
-		filename = "whisper-v1.9.3-bin-ubuntu-cpu-x64.tar.gz"
-	)
-
-	archive := linuxArchive(t, map[string]string{
-		"libwhisper.so.1": "whisper",
-		"libggml.so":      "ggml",
-	}, nil)
-	archiveSum := sumBytes(archive)
-
-	var manifestBody []byte
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/digests/" + tag + ".json":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(manifestBody)
-		case "/ardanlabs/bucky-builder/releases/download/" + tag + "/" + filename:
-			_, _ = w.Write(archive)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
-
-	manifestBody = manifestJSON(t, tag, filename, archiveSum, map[string]string{
-		"libwhisper.so.1": sumString("whisper"),
-		"libggml.so":      sumString("ggml"),
-	}, nil)
-	manifestSum := sumBytes(manifestBody)
-	restoreDownloadURLs(t, server.URL)
-
-	dest := t.TempDir()
-	version := tag + "@sha256:" + manifestSum
-	if err := GetWithContext(context.Background(), "amd64", "linux", "cpu", version, dest, nil); err != nil {
-		t.Fatalf("GetWithContext: %v", err)
+	const tag = "v1.9.5"
+	tests := []struct {
+		processor string
+		filename  string
+	}{
+		{"cpu", "whisper-v1.9.5-bin-ubuntu-cpu-x64.tar.gz"},
+		{"cuda12", "whisper-v1.9.5-bin-ubuntu-cuda-x64.tar.gz"},
+		{"cuda13", "whisper-v1.9.5-bin-ubuntu-cuda-13-x64.tar.gz"},
 	}
+	for _, tt := range tests {
+		t.Run(tt.processor, func(t *testing.T) {
+			filename := tt.filename
 
-	record, err := ReadInstallRecord(dest)
-	if err != nil {
-		t.Fatalf("ReadInstallRecord: %v", err)
-	}
-	if record.Tag != tag || record.ManifestSHA256 != manifestSum {
-		t.Errorf("record tag/pin = %q/%q, want %q/%q", record.Tag, record.ManifestSHA256, tag, manifestSum)
-	}
-	if record.Asset.SHA256 != archiveSum || len(record.Asset.Files) != 2 || len(record.Asset.Links) != 0 {
-		t.Errorf("record asset = %+v", record.Asset)
-	}
+			archive := linuxArchive(t, map[string]string{
+				"libwhisper.so.1": "whisper",
+				"libggml.so":      "ggml",
+			}, nil)
+			archiveSum := sumBytes(archive)
 
-	report, err := VerifyInstall(context.Background(), dest, version)
-	if err != nil {
-		t.Fatalf("VerifyInstall: %v", err)
-	}
-	if !report.OK() || !report.ManifestAuthenticated || report.Verified != 2 {
-		t.Errorf("report = %+v", report)
+			var manifestBody []byte
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/digests/" + tag + ".json":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write(manifestBody)
+				case "/ardanlabs/bucky-builder/releases/download/" + tag + "/" + filename:
+					_, _ = w.Write(archive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer server.Close()
+
+			manifestBody = manifestJSON(t, tag, filename, archiveSum, map[string]string{
+				"libwhisper.so.1": sumString("whisper"),
+				"libggml.so":      sumString("ggml"),
+			}, nil)
+			manifestSum := sumBytes(manifestBody)
+			restoreDownloadURLs(t, server.URL)
+
+			dest := t.TempDir()
+			version := tag + "@sha256:" + manifestSum
+			if err := GetWithContext(context.Background(), "amd64", "linux", tt.processor, version, dest, nil); err != nil {
+				t.Fatalf("GetWithContext: %v", err)
+			}
+
+			record, err := ReadInstallRecord(dest)
+			if err != nil {
+				t.Fatalf("ReadInstallRecord: %v", err)
+			}
+			if record.Tag != tag || record.ManifestSHA256 != manifestSum {
+				t.Errorf("record tag/pin = %q/%q, want %q/%q", record.Tag, record.ManifestSHA256, tag, manifestSum)
+			}
+			if record.Processor != tt.processor {
+				t.Errorf("processor: got %q, want %q", record.Processor, tt.processor)
+			}
+			if record.Asset.SHA256 != archiveSum || len(record.Asset.Files) != 2 || len(record.Asset.Links) != 0 {
+				t.Errorf("record asset = %+v", record.Asset)
+			}
+
+			report, err := VerifyInstall(context.Background(), dest, version)
+			if err != nil {
+				t.Fatalf("VerifyInstall: %v", err)
+			}
+			if !report.OK() || !report.ManifestAuthenticated || report.Verified != 2 {
+				t.Errorf("report = %+v", report)
+			}
+		})
 	}
 }
 

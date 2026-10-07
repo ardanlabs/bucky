@@ -21,7 +21,7 @@ make build
 ./bucky install -lib ./lib
 
 # Authenticate the publisher manifest before installing.
-./bucky install -lib ./lib -version 'v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e'
+./bucky install -lib ./lib -version 'v1.9.5@sha256:b835b4214be7025620d5cc89147ecbe14bb30a21939abe3e5524fe18cc892ecb'
 ```
 
 Every install verifies the selected archive against its release manifest before
@@ -44,7 +44,7 @@ make build
 This downloads `whisper-vX.Y.Z-bin-windows-cpu-x64.zip` and extracts its
 DLLs (`whisper.dll`, `ggml.dll`, `ggml-base.dll`, and the CPU variants).
 
-For CUDA builds use `-p cuda`; that downloads
+For CUDA 12.4 builds use `-p cuda12` (or the compatibility alias `-p cuda`); that downloads
 `whisper-vX.Y.Z-bin-windows-cuda-x64.zip` instead. The CUDA runtime DLLs
 are included, so only a compatible NVIDIA driver is required on the host.
 
@@ -71,30 +71,49 @@ make build
 Linux libraries are produced by the
 [`ardanlabs/bucky-builder`](https://github.com/ardanlabs/bucky-builder)
 companion repo. The builder checks twice daily for new whisper.cpp tags and
-publishes six purpose-built Linux artifacts per release:
+publishes eight purpose-built Linux artifacts per release:
 
 | Backend   | amd64                                         | arm64                                           |
 | --------- | --------------------------------------------- | ----------------------------------------------- |
 | CPU       | `whisper-vX.Y.Z-bin-ubuntu-cpu-x64.tar.gz`    | `whisper-vX.Y.Z-bin-ubuntu-cpu-arm64.tar.gz`    |
 | CUDA 12.9 | `whisper-vX.Y.Z-bin-ubuntu-cuda-x64.tar.gz`   | `whisper-vX.Y.Z-bin-ubuntu-cuda-arm64.tar.gz`   |
+| CUDA 13.0 | `whisper-vX.Y.Z-bin-ubuntu-cuda-13-x64.tar.gz` | `whisper-vX.Y.Z-bin-ubuntu-cuda-13-arm64.tar.gz` |
 | Vulkan    | `whisper-vX.Y.Z-bin-ubuntu-vulkan-x64.tar.gz` | `whisper-vX.Y.Z-bin-ubuntu-vulkan-arm64.tar.gz` |
 
-`bucky install` auto-detects CUDA via `nvidia-smi` and downloads the
-matching artifact. Pass `-p vulkan` to opt into the Vulkan build, or
-`-p cpu` to force the CPU bundle. CUDA arm64 targets Jetson Orin (sm_87);
-CUDA amd64 targets sm_86 + sm_89 (consumer Ampere / Ada GPUs).
+`bucky install` detects NVIDIA driver capability via `nvidia-smi`. On Linux,
+CUDA capability 13 or newer selects `cuda13`; older or unknown versions
+select `cuda12`. Without a detected NVIDIA driver, it selects CPU. Pass
+`-p cuda12` or `-p cuda13` to override this selection. The existing `-p cuda`
+option remains a CUDA 12 alias. CUDA 13 is Linux-only. Pass `-p vulkan` to
+opt into Vulkan, or `-p cpu` to force CPU.
+
+Driver capability does not indicate which user-space runtime libraries are
+installed. Linux CUDA bundles require matching `libcudart.so.12` and
+`libcublas.so.12`, or `libcudart.so.13` and `libcublas.so.13`, plus a compatible
+NVIDIA driver. Both runtime majors can coexist. Keep Jetson Orin on CUDA 12
+unless its JetPack/runtime supports CUDA 13.
+
+To replace an existing installation with CUDA 13:
+
+```sh
+./bucky install -lib ./lib --processor cuda13 --upgrade
+```
+
+CUDA arm64 targets Jetson Orin (sm_87) and DGX Spark (sm_121). CUDA amd64
+includes sm_75 and sm_80 PTX plus native sm_86 and sm_89 builds.
 
 The tarball unpacks `libwhisper.so`, `libggml.so`, `libggml-base.so`,
 `libggml-cpu.so`, and (for cuda / vulkan variants) `libggml-cuda.so` /
 `libggml-vulkan.so` into `lib/`. RPATH is `$ORIGIN`, so the libraries are
-self-contained regardless of where you point `BUCKY_LIB`.
+able to find their bundled siblings regardless of where you point `BUCKY_LIB`.
+System dependencies, including NVIDIA runtime libraries, are not bundled.
 
 If you'd rather build whisper.cpp yourself:
 
 ```
 git clone https://github.com/ggml-org/whisper.cpp.git
 cd whisper.cpp
-git checkout v1.9.4
+git checkout v1.9.5
 cmake -B build -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release -j$(nproc)
 mkdir -p ../bucky/lib

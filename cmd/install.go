@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
+	"strings"
 
 	"github.com/ardanlabs/bucky/pkg/download"
 	"github.com/urfave/cli/v2"
@@ -32,7 +34,7 @@ var InstallCmd = &cli.Command{
 		&cli.StringFlag{
 			Name:    "processor",
 			Aliases: []string{"p"},
-			Usage:   "processor to use (cpu, cuda, metal, vulkan)",
+			Usage:   "processor to use (cpu, cuda [CUDA 12 alias], cuda12, cuda13 [Linux only], metal, vulkan)",
 			Value:   "",
 		},
 		&cli.StringFlag{
@@ -123,15 +125,28 @@ func defaultProcessor(osInstall string, quiet bool) string {
 		return "metal"
 	case "windows", "linux":
 		if cudaInstalled, cudaVersion := download.HasCUDA(); cudaInstalled {
+			processor := cudaProcessor(osInstall, cudaVersion)
 			if !quiet {
-				fmt.Printf("CUDA detected (version %s), using CUDA build\n", cudaVersion)
+				fmt.Printf("NVIDIA driver detected (CUDA capability %s), using %s build\n", cudaVersion, processor)
 			}
-			return "cuda"
+			return processor
 		}
 		return "cpu"
 	default:
 		return "cpu"
 	}
+}
+
+// cudaProcessor selects the toolkit major from driver capability, not from
+// installed runtime libraries. Users can override it with --processor.
+func cudaProcessor(osInstall, version string) string {
+	if osInstall == "linux" {
+		majorText, _, _ := strings.Cut(version, ".")
+		if major, err := strconv.Atoi(majorText); err == nil && major >= 13 {
+			return "cuda13"
+		}
+	}
+	return "cuda12"
 }
 
 func showInstallRequirements(libPath string) {

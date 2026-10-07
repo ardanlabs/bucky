@@ -38,7 +38,7 @@ const BuckyBuilderRepo = "ardanlabs/bucky-builder"
 // struct mirrors (e.g. WhisperFullParams's 304-byte layout) are tested against.
 // Bumping this value is a deliberate, reviewable change that should be paired
 // with re-running the FFI sizeof + by-ref/by-value tests in pkg/whisper.
-const DefaultWhisperVersion = "v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e"
+const DefaultWhisperVersion = "v1.9.5@sha256:b835b4214be7025620d5cc89147ecbe14bb30a21939abe3e5524fe18cc892ecb"
 
 var (
 	// RetryCount is how many times the package will retry to obtain the latest whisper.cpp version.
@@ -137,7 +137,7 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 			// as Linux (GGML_CPU_ALL_VARIANTS=ON, GGML_BACKEND_DL=ON).
 			location = buckyBuilder
 			filename = fmt.Sprintf("whisper-%s-bin-windows-cpu-x64.zip", version)
-		case CUDA:
+		case CUDA, CUDA12:
 			if hasBuilderWindowsCUDA(version) {
 				location = buckyBuilder
 				filename = fmt.Sprintf("whisper-%s-bin-windows-cuda-x64.zip", version)
@@ -146,7 +146,7 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 				filename = "whisper-cublas-12.4.0-bin-x64.zip"
 			}
 		default:
-			return "", "", fmt.Errorf("%w: windows supports cpu/cuda", ErrUnknownProcessor)
+			return "", "", fmt.Errorf("%w: windows supports cpu/cuda/cuda12", ErrUnknownProcessor)
 		}
 
 	case Linux:
@@ -168,8 +168,12 @@ func getDownloadLocationAndFilename(arch Arch, os OS, prcssr Processor, version 
 		switch prcssr {
 		case CPU, CUDA, Vulkan:
 			filename = fmt.Sprintf("whisper-%s-bin-ubuntu-%s-%s.tar.gz", version, prcssr, archStr)
+		case CUDA12:
+			filename = fmt.Sprintf("whisper-%s-bin-ubuntu-cuda-%s.tar.gz", version, archStr)
+		case CUDA13:
+			filename = fmt.Sprintf("whisper-%s-bin-ubuntu-cuda-13-%s.tar.gz", version, archStr)
 		default:
-			return "", "", fmt.Errorf("%w: linux supports cpu/cuda/vulkan", ErrUnknownProcessor)
+			return "", "", fmt.Errorf("%w: linux supports cpu/cuda/cuda12/cuda13/vulkan", ErrUnknownProcessor)
 		}
 
 	default:
@@ -195,8 +199,8 @@ var getFunc = get
 //
 //	arch:      "amd64" or "arm64"
 //	os:        "linux", "darwin", or "windows"
-//	processor: "cpu", "cuda", "metal", or "vulkan"
-//	version:   the desired whisper.cpp release tag, e.g. "v1.9.4"
+//	processor: "cpu", "cuda" (CUDA 12), "cuda12", "cuda13", "metal", or "vulkan"
+//	version:   the desired whisper.cpp release tag, e.g. "v1.9.5"
 //	dest:      destination directory for the extracted libraries
 func Get(architecture string, operatingSystem string, processor string, version string, dest string) error {
 	return GetWithProgress(architecture, operatingSystem, processor, version, dest, ProgressTracker)

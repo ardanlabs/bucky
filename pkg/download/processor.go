@@ -6,6 +6,8 @@ import "fmt"
 var (
 	CPU    = newProcessor("cpu")
 	CUDA   = newProcessor("cuda")
+	CUDA12 = newProcessor("cuda12")
+	CUDA13 = newProcessor("cuda13")
 	Metal  = newProcessor("metal")
 	Vulkan = newProcessor("vulkan")
 )

@@ -7,9 +7,9 @@ import (
 
 func TestDefaultWhisperVersion(t *testing.T) {
 	const (
-		want       = "v1.9.4@sha256:56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e"
-		wantTag    = "v1.9.4"
-		wantDigest = "56e7b4ae8508ca674535f36e92378c2257975a03b523ebc15e93dd89d816a77e"
+		want       = "v1.9.5@sha256:b835b4214be7025620d5cc89147ecbe14bb30a21939abe3e5524fe18cc892ecb"
+		wantTag    = "v1.9.5"
+		wantDigest = "b835b4214be7025620d5cc89147ecbe14bb30a21939abe3e5524fe18cc892ecb"
 	)
 
 	if DefaultWhisperVersion != want {
@@ -33,6 +33,7 @@ func TestVersionIsValid(t *testing.T) {
 		version string
 		wantErr bool
 	}{
+		{"v1.9.5", false},
 		{"v1.9.4", false},
 		{"v1.9.3", false},
 		{"v1.9.2", false},
@@ -78,7 +79,7 @@ func TestLibraryName(t *testing.T) {
 }
 
 func TestGetDownloadLocationAndFilename(t *testing.T) {
-	const buckyBuilder = "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.4"
+	const buckyBuilder = "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.5"
 	const upstream = "https://github.com/ggml-org/whisper.cpp/releases/download/v1.9.2"
 
 	tests := []struct {
@@ -96,27 +97,27 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:         ARM64,
 			os:           Darwin,
 			proc:         CPU,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-darwin-metal-universal.zip",
+			wantFile:     "whisper-v1.9.5-bin-darwin-metal-universal.zip",
 		},
 		{
 			name:         "darwin arm64 metal uses bucky-builder xcframework",
 			arch:         ARM64,
 			os:           Darwin,
 			proc:         Metal,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-darwin-metal-universal.zip",
+			wantFile:     "whisper-v1.9.5-bin-darwin-metal-universal.zip",
 		},
 		{
 			name:         "windows amd64 cpu uses bucky-builder",
 			arch:         AMD64,
 			os:           Windows,
 			proc:         CPU,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-windows-cpu-x64.zip",
+			wantFile:     "whisper-v1.9.5-bin-windows-cpu-x64.zip",
 		},
 		{
 			name:         "windows amd64 cuda before builder support uses upstream",
@@ -132,70 +133,70 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:         AMD64,
 			os:           Windows,
 			proc:         CUDA,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-windows-cuda-x64.zip",
+			wantFile:     "whisper-v1.9.5-bin-windows-cuda-x64.zip",
 		},
 		{
 			name:         "linux amd64 cpu",
 			arch:         AMD64,
 			os:           Linux,
 			proc:         CPU,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-cpu-x64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-cpu-x64.tar.gz",
 		},
 		{
 			name:         "linux amd64 cuda",
 			arch:         AMD64,
 			os:           Linux,
 			proc:         CUDA,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-cuda-x64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-cuda-x64.tar.gz",
 		},
 		{
 			name:         "linux amd64 vulkan",
 			arch:         AMD64,
 			os:           Linux,
 			proc:         Vulkan,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-vulkan-x64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-vulkan-x64.tar.gz",
 		},
 		{
 			name:         "linux arm64 cpu",
 			arch:         ARM64,
 			os:           Linux,
 			proc:         CPU,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-cpu-arm64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-cpu-arm64.tar.gz",
 		},
 		{
 			name:         "linux arm64 cuda",
 			arch:         ARM64,
 			os:           Linux,
 			proc:         CUDA,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-cuda-arm64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-cuda-arm64.tar.gz",
 		},
 		{
 			name:         "linux arm64 vulkan",
 			arch:         ARM64,
 			os:           Linux,
 			proc:         Vulkan,
-			version:      "v1.9.4",
+			version:      "v1.9.5",
 			wantLocation: buckyBuilder,
-			wantFile:     "whisper-v1.9.4-bin-ubuntu-vulkan-arm64.tar.gz",
+			wantFile:     "whisper-v1.9.5-bin-ubuntu-vulkan-arm64.tar.gz",
 		},
 		{
 			name:    "linux metal unsupported",
 			arch:    AMD64,
 			os:      Linux,
 			proc:    Metal,
-			version: "v1.9.4",
+			version: "v1.9.5",
 			wantErr: ErrUnknownProcessor,
 		},
 		{
@@ -203,7 +204,7 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			arch:    ARM64,
 			os:      Windows,
 			proc:    CPU,
-			version: "v1.9.4",
+			version: "v1.9.5",
 			wantErr: ErrUnsupportedPlatform,
 		},
 	}
@@ -225,6 +226,49 @@ func TestGetDownloadLocationAndFilename(t *testing.T) {
 			}
 			if gotLocation != tt.wantLocation {
 				t.Errorf("location: got %q, want %q", gotLocation, tt.wantLocation)
+			}
+		})
+	}
+}
+
+func TestCUDAAssets(t *testing.T) {
+	tests := []struct {
+		os       OS
+		arch     Arch
+		proc     string
+		wantFile string
+		wantErr  bool
+	}{
+		{Linux, AMD64, "cuda12", "whisper-v1.9.5-bin-ubuntu-cuda-x64.tar.gz", false},
+		{Linux, ARM64, "cuda12", "whisper-v1.9.5-bin-ubuntu-cuda-arm64.tar.gz", false},
+		{Linux, AMD64, "cuda13", "whisper-v1.9.5-bin-ubuntu-cuda-13-x64.tar.gz", false},
+		{Linux, ARM64, "cuda13", "whisper-v1.9.5-bin-ubuntu-cuda-13-arm64.tar.gz", false},
+		{Windows, AMD64, "cuda12", "whisper-v1.9.5-bin-windows-cuda-x64.zip", false},
+		{Windows, AMD64, "cuda13", "", true},
+		{Darwin, ARM64, "cuda12", "", true},
+		{Darwin, ARM64, "cuda13", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.os.String()+"/"+tt.arch.String()+"/"+tt.proc, func(t *testing.T) {
+			proc, err := ParseProcessor(tt.proc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			location, filename, err := getDownloadLocationAndFilename(tt.arch, tt.os, proc, "v1.9.5")
+			if tt.wantErr {
+				if !errors.Is(err, ErrUnknownProcessor) {
+					t.Fatalf("error: got %v, want %v", err, ErrUnknownProcessor)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if filename != tt.wantFile {
+				t.Errorf("filename: got %q, want %q", filename, tt.wantFile)
+			}
+			if want := "https://github.com/ardanlabs/bucky-builder/releases/download/v1.9.5"; location != want {
+				t.Errorf("location: got %q, want %q", location, want)
 			}
 		})
 	}
