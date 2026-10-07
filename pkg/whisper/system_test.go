@@ -10,7 +10,7 @@ import (
 func TestVersion(t *testing.T) {
 	testSetup(t)
 
-	const want = "1.9.4-dev"
+	const want = "1.9.5-dev"
 
 	if got := Version(); got != want {
 		t.Errorf("Version() = %q, want %q", got, want)

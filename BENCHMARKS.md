@@ -2,16 +2,25 @@
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
 (darwin/arm64) with the Metal backend from bucky-builder's
-`whisper-v1.9.4-bin-darwin-metal-universal.zip`. The Go benchmark and
+`whisper-v1.9.5-bin-darwin-metal-universal.zip` on 2026-10-07 using Go 1.27.1.
+The Go benchmark and
 the upstream ggml/memcpy helpers all run against the same
-`lib/libwhisper.dylib` installed by Bucky.
+`lib/libwhisper.dylib` installed by Bucky, reporting `1.9.5-dev`.
+
+Artifact provenance:
+
+- Release: https://github.com/ardanlabs/bucky-builder/releases/tag/v1.9.5
+- Manifest SHA-256: `baa183812d9b40f310b36587dedf86fcb23ff136586d16e37d63f3099e40fa88`
+- Archive SHA-256: `2bcdad1f30ab85b97959f4ebcbe2b62d5af560fb5113f1e373fe1effaa1e70aa`
+- Installed dylib SHA-256: `c38832e75be90515bd7ff882efe277b07c58474368fb5df1cbd9b05269a3dbe0`
 
 Reproduce with:
 
 ```
-make download-whisper.cpp VERSION=v1.9.4 # populates ./lib
-make download-models                # populates ~/models
-make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
+go run . install -lib "$PWD/lib" -p metal -u -q \
+    -v 'v1.9.5@sha256:baa183812d9b40f310b36587dedf86fcb23ff136586d16e37d63f3099e40fa88'
+go run . model get -y -o "$HOME/models" tiny
+# Run the exact commands below for each benchmark.
 ```
 
 ## Methodology
@@ -31,7 +40,7 @@ make bench                          # BUCKY_BENCH_MODEL=ggml-tiny by default
 
 | Model     | Backend | b.N |      ns/op | audio_s |      RTF |
 | --------- | ------- | --: | ---------: | ------: | -------: |
-| ggml-tiny | Metal   |  10 | 27,233,642 |   11.00 | 0.002476 |
+| ggml-tiny | Metal   |  10 | 26,801,608 |   11.00 | 0.002437 |
 
 Run command:
 
@@ -42,8 +51,9 @@ BUCKY_TEST_AUDIO=$PWD/samples/jfk.wav \
 go test -count=1 -bench=BenchmarkFullJFK -benchtime=10x -run='^$' ./pkg/whisper/
 ```
 
-The first un-timed warm-up dominates total wall time (~5–6 s) because of
-Metal library compilation; warm runs are ~27 ms for 11 s of audio. To
+The first untimed warm-up excludes Metal library compilation and model
+initialization from the measurement; this run finished in 0.853 s overall,
+with warm runs of ~26.8 ms for 11 s of audio. To
 record numbers across `tiny`, `base`, `small`, etc., re-run with a
 different `BUCKY_BENCH_MODEL`.
 
@@ -56,23 +66,23 @@ useful for comparing backends or hosts without loading a model.
 ### `whisper_bench_memcpy_str(4)` — Apple M5 Max
 
 ```
-memcpy:   59.84 GB/s (heat-up)
-memcpy:   66.84 GB/s ( 1 thread)
-memcpy:   70.33 GB/s ( 1 thread)
-memcpy:  123.55 GB/s ( 2 thread)
-memcpy:  159.16 GB/s ( 3 thread)
-memcpy:  173.77 GB/s ( 4 thread)
+memcpy:   55.02 GB/s (heat-up)
+memcpy:   68.37 GB/s ( 1 thread)
+memcpy:   67.73 GB/s ( 1 thread)
+memcpy:  119.69 GB/s ( 2 thread)
+memcpy:  157.85 GB/s ( 3 thread)
+memcpy:  171.11 GB/s ( 4 thread)
 ```
 
 ### `whisper_bench_ggml_mul_mat_str(4)` — selected sizes
 
 | Size      |         Q4_0 |         Q8_0 |          F16 |          F32 |
 | --------- | -----------: | -----------: | -----------: | -----------: |
-| 256x256   | 117.9 GFLOPS | 234.1 GFLOPS | 208.1 GFLOPS | 138.8 GFLOPS |
-| 512x512   | 142.5 GFLOPS | 368.0 GFLOPS | 312.4 GFLOPS | 175.8 GFLOPS |
-| 1024x1024 | 147.9 GFLOPS | 433.5 GFLOPS | 359.4 GFLOPS | 182.4 GFLOPS |
-| 2048x2048 | 149.3 GFLOPS | 425.2 GFLOPS | 357.5 GFLOPS | 166.7 GFLOPS |
-| 4096x4096 | 149.3 GFLOPS | 387.8 GFLOPS | 328.8 GFLOPS | 156.0 GFLOPS |
+| 256x256   | 117.3 GFLOPS | 246.6 GFLOPS | 213.6 GFLOPS | 139.4 GFLOPS |
+| 512x512   | 140.5 GFLOPS | 371.8 GFLOPS | 314.1 GFLOPS | 176.3 GFLOPS |
+| 1024x1024 | 147.2 GFLOPS | 431.8 GFLOPS | 357.4 GFLOPS | 181.4 GFLOPS |
+| 2048x2048 | 148.4 GFLOPS | 423.1 GFLOPS | 354.3 GFLOPS | 163.9 GFLOPS |
+| 4096x4096 | 148.4 GFLOPS | 387.0 GFLOPS | 326.1 GFLOPS | 154.8 GFLOPS |
 
 Full output is produced by the `BenchMemcpyStr` / `BenchGGMLMulMatStr`
 wrappers. The recorded values were generated with this temporary driver:
@@ -97,6 +107,7 @@ func main() {
     if err := whisper.Init(lib); err != nil {
         log.Fatal(err)
     }
+    fmt.Printf("whisper.cpp %s\n", whisper.Version())
     fmt.Print(whisper.BenchMemcpyStr(4))
     fmt.Print(whisper.BenchGGMLMulMatStr(4))
 }
@@ -115,13 +126,13 @@ the benchmarks.
 
 | Benchmark                |   ns/op |      B/op | allocs/op |           vs allocating |
 | ------------------------ | ------: | --------: | --------: | ----------------------: |
-| `BenchmarkDecodeWAV`     | 141,794 | 1,056,908 |         9 |                baseline |
-| `BenchmarkDecodeWAVInto` | 118,350 |   352,393 |         8 | **-17% time, -67% mem** |
-| `BenchmarkDecode`        | 143,580 | 1,057,029 |        13 |                baseline |
-| `BenchmarkDecodeInto`    | 117,342 |   352,512 |        12 | **-18% time, -67% mem** |
+| `BenchmarkDecodeWAV`     | 142,861 | 1,056,908 |         9 |                baseline |
+| `BenchmarkDecodeWAVInto` | 118,765 |   352,392 |         8 | **-17% time, -67% mem** |
+| `BenchmarkDecode`        | 140,285 | 1,057,028 |        13 |                baseline |
+| `BenchmarkDecodeInto`    | 118,642 |   352,513 |        12 | **-15% time, -67% mem** |
 
 The `Into` variants eliminate the per-call `[]float32` output allocation
-(~705 KB for an 11 s clip), reducing runtime by 17–18% in this run. The
+(~705 KB for an 11 s clip), reducing runtime by 15–17% in this run. The
 remaining 352 KB is the internal `[]byte` WAV chunk read by `readWAVData`
 and could be pooled in a future change if needed.
 
