@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -81,6 +82,8 @@ func (r *VerifyReport) OK() bool {
 // VerifyInstall checks libPath against publisher metadata or its local install record.
 // An empty version performs an offline check and does not claim external authenticity.
 // A pinned version refetches and authenticates the raw publisher manifest.
+// If the network is unavailable, a matching install record supplies the file
+// digests instead; the report does not claim external authenticity in that case.
 func VerifyInstall(ctx context.Context, libPath, version string) (*VerifyReport, error) {
 	tag, pin, err := ParsePinnedVersion(version)
 	if err != nil {
@@ -116,16 +119,23 @@ func VerifyInstall(ctx context.Context, libPath, version string) (*VerifyReport,
 		assetURL := location + "/" + filename
 		m, _, err := fetchManifest(ctx, tag, pin)
 		if err != nil {
-			return nil, err
+			var networkErr net.Error
+			if ctx.Err() != nil || !errors.As(err, &networkErr) {
+				return nil, err
+			}
+			if record.Tag != tag || record.Asset.URL != assetURL || (pin != "" && !strings.EqualFold(record.ManifestSHA256, pin)) {
+				return nil, fmt.Errorf("%w: installed bundle does not match %s", ErrRecordMismatch, version)
+			}
+		} else {
+			entry, ok := m.assetFor(assetURL)
+			if !ok {
+				return nil, fmt.Errorf("%w: %s", ErrRecordMismatch, assetURL)
+			}
+			wantFiles, wantLinks = entry.Files, entry.Links
+			report.Tag = tag
+			report.Source = "publisher-manifest"
+			report.ManifestAuthenticated = pin != ""
 		}
-		entry, ok := m.assetFor(assetURL)
-		if !ok {
-			return nil, fmt.Errorf("%w: %s", ErrRecordMismatch, assetURL)
-		}
-		wantFiles, wantLinks = entry.Files, entry.Links
-		report.Tag = tag
-		report.Source = "publisher-manifest"
-		report.ManifestAuthenticated = pin != ""
 	}
 	if len(wantFiles) == 0 && len(wantLinks) == 0 {
 		return nil, ErrNoFileDigests

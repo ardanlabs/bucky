@@ -189,6 +189,25 @@ func TestGetWithContextPinned(t *testing.T) {
 			if !report.OK() || !report.ManifestAuthenticated || report.Verified != 2 {
 				t.Errorf("report = %+v", report)
 			}
+
+			server.Close()
+			report, err = VerifyInstall(context.Background(), dest, version)
+			if err != nil {
+				t.Fatalf("VerifyInstall without network: %v", err)
+			}
+			if !report.OK() || report.ManifestAuthenticated || report.Source != "install-record" || report.Verified != 2 {
+				t.Errorf("offline report = %+v, want two verified files from install-record", report)
+			}
+			if err := os.WriteFile(filepath.Join(dest, "libwhisper.so.1"), []byte("modified"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			report, err = VerifyInstall(context.Background(), dest, version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if report.OK() || report.Changed != 1 || report.Verified != 1 {
+				t.Errorf("modified offline report = %+v, want one changed file", report)
+			}
 		})
 	}
 }
@@ -309,6 +328,58 @@ func TestGetWithContextRejectsMissingManifestForPlainVersion(t *testing.T) {
 	}
 	if _, err := os.Stat(dest); !os.IsNotExist(err) {
 		t.Errorf("destination exists after missing manifest: %v", err)
+	}
+}
+
+func TestVerifyInstallNetworkFallbackRejectsMismatch(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	defer server.Close()
+	restoreDownloadURLs(t, server.URL)
+	tag, pin, err := ParsePinnedVersion(DefaultWhisperVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, filename, err := getDownloadLocationAndFilename(ARM64, Darwin, Metal, tag)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, state := range []string{"http error", "tag", "pin", "asset", "no digests", "canceled"} {
+		t.Run(state, func(t *testing.T) {
+			record := InstallRecord{
+				Tag: tag, Arch: "arm64", OS: "darwin", Processor: "metal", ManifestSHA256: pin,
+				Asset: InstallAsset{URL: location + "/" + filename, Files: map[string]string{"libwhisper.dylib": sumString("working")}},
+			}
+			wantErr := ErrRecordMismatch
+			switch state {
+			case "http error":
+				// An HTTP failure must not silently downgrade publisher verification.
+			case "tag":
+				server.Close()
+				record.Tag = "v1.9.4"
+			case "pin":
+				record.ManifestSHA256 = strings.Repeat("0", 64)
+			case "asset":
+				record.Asset.URL += ".wrong"
+			case "no digests":
+				record.Asset.Files = nil
+				wantErr = ErrNoFileDigests
+			case "canceled":
+				wantErr = context.Canceled
+			}
+			dest := t.TempDir()
+			if err := WriteInstallRecord(dest, record); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if state == "canceled" {
+				cancel()
+			}
+			_, err := VerifyInstall(ctx, dest, DefaultWhisperVersion)
+			if err == nil || (state != "http error" && !errors.Is(err, wantErr)) {
+				t.Errorf("VerifyInstall error = %v, want %v", err, wantErr)
+			}
+		})
 	}
 }
 
