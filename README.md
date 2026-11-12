@@ -46,9 +46,9 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 
 | bucky  | whisper.cpp |
 | ------ | ----------- |
+| v1.1.5 | v1.9.5      |
 | v1.1.4 | v1.9.5      |
 | v1.1.3 | v1.9.4      |
-| v1.1.2 | v1.9.3      |
 
 The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`, `streaming-realtime`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
@@ -138,11 +138,11 @@ See [MODELS.md](./MODELS.md) for the recommended set with size / speed / quality
 
 Bucky uses purpose-built shared-library bundles from the [ardanlabs/bucky-builder](https://github.com/ardanlabs/bucky-builder) companion repo.
 
-| OS      | CPU          | GPU               | Source                                                           |
-| ------- | ------------ | ----------------- | ---------------------------------------------------------------- |
+| OS      | CPU          | GPU                          | Source                                                                   |
+| ------- | ------------ | ---------------------------- | ------------------------------------------------------------------------ |
 | Linux   | amd64, arm64 | CUDA 12.9, CUDA 13.0, Vulkan | `whisper-vX.Y.Z-bin-ubuntu-{cpu,cuda,cuda-13,vulkan}-{x64,arm64}.tar.gz` |
-| macOS   | arm64, amd64 | Metal             | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`                  |
-| Windows | amd64        | CPU, CUDA 12.4    | `whisper-vX.Y.Z-bin-windows-{cpu,cuda}-x64.zip`                  |
+| macOS   | arm64, amd64 | Metal                        | `whisper-vX.Y.Z-bin-darwin-metal-universal.zip`                          |
+| Windows | amd64        | CPU, CUDA 12.4               | `whisper-vX.Y.Z-bin-windows-{cpu,cuda}-x64.zip`                          |
 
 Whenever there is a new release of whisper.cpp, the FFI struct mirrors and `pkg/download` matrix may need a refresh. The pinned version is captured in `pkg/download/`.
 
