@@ -46,7 +46,7 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 
 | bucky  | whisper.cpp |
 | ------ | ----------- |
-| v1.1.5 | v1.9.5      |
+| v1.1.6 | v1.9.5      |
 | v1.1.4 | v1.9.5      |
 | v1.1.3 | v1.9.4      |
 

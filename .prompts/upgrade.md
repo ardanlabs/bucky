@@ -1,5 +1,5 @@
 WHISPER_VERSION = v1.9.5
-BUCKY_VERSION = v1.1.5
+BUCKY_VERSION = v1.1.6
 
 Upgrade this Bucky repository to whisper.cpp <WHISPER_VERSION> and prepare
 Bucky release <BUCKY_VERSION>.
