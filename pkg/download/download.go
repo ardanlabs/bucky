@@ -277,6 +277,21 @@ func GetWithContext(ctx context.Context, architecture string, operatingSystem st
 	return WriteInstallRecord(dest, record)
 }
 
+// downloadGetters preserves go-getter's supported protocols with private getter
+// instances. Getters hold mutable client state and must not cross downloads.
+func downloadGetters() map[string]getter.Getter {
+	httpGetter := &getter.HttpGetter{Netrc: true}
+	return map[string]getter.Getter{
+		"file":  new(getter.FileGetter),
+		"git":   new(getter.GitGetter),
+		"gcs":   new(getter.GCSGetter),
+		"hg":    new(getter.HgGetter),
+		"s3":    new(getter.S3Getter),
+		"http":  httpGetter,
+		"https": httpGetter,
+	}
+}
+
 // get downloads the asset zip and extracts the relevant whisper library file(s)
 // into dest. The extraction logic differs per OS because whisper.cpp ships
 // platform-specific archive layouts.
@@ -289,10 +304,11 @@ func get(ctx context.Context, url, dest string, osVal OS, wantSHA string, progre
 	downloadFile := filepath.Join(tempDir, filepath.Base(url))
 
 	client := &getter.Client{
-		Ctx:  ctx,
-		Src:  url + "?archive=false",
-		Dst:  tempDir,
-		Mode: getter.ClientModeAny,
+		Ctx:     ctx,
+		Src:     url + "?archive=false",
+		Dst:     tempDir,
+		Mode:    getter.ClientModeAny,
+		Getters: downloadGetters(),
 	}
 
 	if progress != nil {
