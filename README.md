@@ -17,7 +17,7 @@ To install bucky, fetch the whisper.cpp shared libraries, and transcribe the bun
 $ go install github.com/ardanlabs/bucky@latest
 
 $ bucky install -lib ./lib
-$ bucky install -lib ./lib -version 'v1.9.5@sha256:b835b4214be7025620d5cc89147ecbe14bb30a21939abe3e5524fe18cc892ecb'
+$ bucky install -lib ./lib -version 'v1.9.6@sha256:65201f945ec1c04b8a7da162675ce3f89c017f5fc5df12c9f418e70d3fbbd99a'
 $ export BUCKY_LIB=$(pwd)/lib
 
 $ bucky model get tiny
@@ -46,9 +46,9 @@ Sometimes there are breaking changes to whisper.cpp that require an update to bu
 
 | bucky  | whisper.cpp |
 | ------ | ----------- |
+| v1.1.7 | v1.9.6      |
 | v1.1.6 | v1.9.5      |
-| v1.1.4 | v1.9.5      |
-| v1.1.3 | v1.9.4      |
+| v1.1.5 | v1.9.5      |
 
 The core FFI binding (model loading, `whisper_full`, segments + tokens, VAD, state, language, bench helpers), audio decoding (WAV/MP3/FLAC), CLI (`install`, `system`, `model get|info|list`, `whisper transcribe`), and examples (`hello`, `transcribe`, `translate`, `segments`, `words`, `streaming`, `streaming-realtime`) have all landed. Kronk integration (an OpenAI-compatible `POST /v1/audio/transcriptions` endpoint) lives in the [kronk](https://github.com/ardanlabs/kronk) repo.
 
@@ -116,7 +116,7 @@ The architecture of bucky mirrors yzma file-for-file so anyone who knows yzma ca
                           │
                           ▼
               libwhisper.{dylib|so|dll}
-                  (whisper.cpp v1.9.5)
+                  (whisper.cpp v1.9.6)
 ```
 
 ## Models
