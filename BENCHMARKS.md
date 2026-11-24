@@ -2,23 +2,23 @@
 
 Performance numbers for `pkg/whisper`. Recorded on Apple M5 Max
 (darwin/arm64) with the Metal backend from bucky-builder's
-`whisper-v1.9.5-bin-darwin-metal-universal.zip` on 2026-10-07 using Go 1.27.1.
+`whisper-v1.9.6-bin-darwin-metal-universal.zip` on 2026-11-24 using Go 1.27.4.
 The Go benchmark and
 the upstream ggml/memcpy helpers all run against the same
-`lib/libwhisper.dylib` installed by Bucky, reporting `1.9.5-dev`.
+`lib/libwhisper.dylib` installed by Bucky, reporting `1.9.6-dev`.
 
 Artifact provenance:
 
-- Release: https://github.com/ardanlabs/bucky-builder/releases/tag/v1.9.5
-- Manifest SHA-256: `baa183812d9b40f310b36587dedf86fcb23ff136586d16e37d63f3099e40fa88`
-- Archive SHA-256: `2bcdad1f30ab85b97959f4ebcbe2b62d5af560fb5113f1e373fe1effaa1e70aa`
-- Installed dylib SHA-256: `c38832e75be90515bd7ff882efe277b07c58474368fb5df1cbd9b05269a3dbe0`
+- Release: https://github.com/ardanlabs/bucky-builder/releases/tag/v1.9.6
+- Manifest SHA-256: `65201f945ec1c04b8a7da162675ce3f89c017f5fc5df12c9f418e70d3fbbd99a`
+- Archive SHA-256: `168d533bf6d4542d3b7120c481756e97c7c83d9135ca40ef879f9a1bf9e640a8`
+- Installed dylib SHA-256: `053e1158bbbc79c88f740eb1830700ed6e8c4979255d281f0288a4e846a595ac`
 
 Reproduce with:
 
 ```
 go run . install -lib "$PWD/lib" -p metal -u -q \
-    -v 'v1.9.5@sha256:baa183812d9b40f310b36587dedf86fcb23ff136586d16e37d63f3099e40fa88'
+    -v 'v1.9.6@sha256:65201f945ec1c04b8a7da162675ce3f89c017f5fc5df12c9f418e70d3fbbd99a'
 go run . model get -y -o "$HOME/models" tiny
 # Run the exact commands below for each benchmark.
 ```
@@ -40,7 +40,7 @@ go run . model get -y -o "$HOME/models" tiny
 
 | Model     | Backend | b.N |      ns/op | audio_s |      RTF |
 | --------- | ------- | --: | ---------: | ------: | -------: |
-| ggml-tiny | Metal   |  10 | 26,801,608 |   11.00 | 0.002437 |
+| ggml-tiny | Metal   |  10 | 28,260,996 |   11.00 | 0.002569 |
 
 Run command:
 
@@ -52,8 +52,9 @@ go test -count=1 -bench=BenchmarkFullJFK -benchtime=10x -run='^$' ./pkg/whisper/
 ```
 
 The first untimed warm-up excludes Metal library compilation and model
-initialization from the measurement; this run finished in 0.853 s overall,
-with warm runs of ~26.8 ms for 11 s of audio. To
+initialization from the measurement; this run finished in 0.590 s overall,
+with warm runs of ~28.3 ms for 11 s of audio (819 B/op, 10 allocs/op).
+No compiled Core ML encoder model was installed; inference used Metal. To
 record numbers across `tiny`, `base`, `small`, etc., re-run with a
 different `BUCKY_BENCH_MODEL`.
 
@@ -66,23 +67,27 @@ useful for comparing backends or hosts without loading a model.
 ### `whisper_bench_memcpy_str(4)` — Apple M5 Max
 
 ```
-memcpy:   55.02 GB/s (heat-up)
-memcpy:   68.37 GB/s ( 1 thread)
-memcpy:   67.73 GB/s ( 1 thread)
-memcpy:  119.69 GB/s ( 2 thread)
-memcpy:  157.85 GB/s ( 3 thread)
-memcpy:  171.11 GB/s ( 4 thread)
+memcpy:   62.77 GB/s (heat-up)
+memcpy:   70.59 GB/s ( 1 thread)
+memcpy:   70.83 GB/s ( 1 thread)
+memcpy:  125.31 GB/s ( 2 thread)
+memcpy:  162.46 GB/s ( 3 thread)
+memcpy:  173.48 GB/s ( 4 thread)
 ```
 
 ### `whisper_bench_ggml_mul_mat_str(4)` — selected sizes
 
 | Size      |         Q4_0 |         Q8_0 |          F16 |          F32 |
 | --------- | -----------: | -----------: | -----------: | -----------: |
-| 256x256   | 117.3 GFLOPS | 246.6 GFLOPS | 213.6 GFLOPS | 139.4 GFLOPS |
-| 512x512   | 140.5 GFLOPS | 371.8 GFLOPS | 314.1 GFLOPS | 176.3 GFLOPS |
-| 1024x1024 | 147.2 GFLOPS | 431.8 GFLOPS | 357.4 GFLOPS | 181.4 GFLOPS |
-| 2048x2048 | 148.4 GFLOPS | 423.1 GFLOPS | 354.3 GFLOPS | 163.9 GFLOPS |
-| 4096x4096 | 148.4 GFLOPS | 387.0 GFLOPS | 326.1 GFLOPS | 154.8 GFLOPS |
+| 256x256   | 122.2 GFLOPS | 248.7 GFLOPS | 148.5 GFLOPS | 142.9 GFLOPS |
+| 512x512   | 142.4 GFLOPS | 370.4 GFLOPS | 186.5 GFLOPS | 176.5 GFLOPS |
+| 1024x1024 | 146.2 GFLOPS | 433.3 GFLOPS | 202.3 GFLOPS | 181.9 GFLOPS |
+| 2048x2048 | 149.1 GFLOPS | 421.1 GFLOPS | 205.1 GFLOPS | 166.1 GFLOPS |
+| 4096x4096 | 148.2 GFLOPS | 388.7 GFLOPS | 196.0 GFLOPS | 155.6 GFLOPS |
+
+These are fresh measurements, not a controlled before/after comparison.
+F16 results are lower than the previous recorded run; the cause has not been
+isolated, and both the native runtime and Go toolchain have changed.
 
 Full output is produced by the `BenchMemcpyStr` / `BenchGGMLMulMatStr`
 wrappers. The recorded values were generated with this temporary driver:
@@ -126,13 +131,14 @@ the benchmarks.
 
 | Benchmark                |   ns/op |      B/op | allocs/op |           vs allocating |
 | ------------------------ | ------: | --------: | --------: | ----------------------: |
-| `BenchmarkDecodeWAV`     | 142,861 | 1,056,908 |         9 |                baseline |
-| `BenchmarkDecodeWAVInto` | 118,765 |   352,392 |         8 | **-17% time, -67% mem** |
-| `BenchmarkDecode`        | 140,285 | 1,057,028 |        13 |                baseline |
-| `BenchmarkDecodeInto`    | 118,642 |   352,513 |        12 | **-15% time, -67% mem** |
+| `BenchmarkDecodeWAV`     | 142,065 | 1,056,907 |         9 |                baseline |
+| `BenchmarkDecodeWAVInto` | 116,125 |   352,392 |         8 | **-18.26% time, -66.66% mem** |
+| `BenchmarkDecode`        | 140,431 | 1,057,028 |        13 |                baseline |
+| `BenchmarkDecodeInto`    | 116,012 |   352,513 |        12 | **-17.39% time, -66.65% mem** |
 
 The `Into` variants eliminate the per-call `[]float32` output allocation
-(~705 KB for an 11 s clip), reducing runtime by 15–17% in this run. The
+(~705 KB for an 11 s clip), reducing runtime by 17–18% in this run. Percentages
+are calculated as `(Into / allocating - 1) * 100` for each pair. The
 remaining 352 KB is the internal `[]byte` WAV chunk read by `readWAVData`
 and could be pooled in a future change if needed.
 
